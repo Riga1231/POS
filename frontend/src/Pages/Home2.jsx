@@ -28,28 +28,44 @@ export default function Home2({ goTo }) {
   const [totalAmount, setTotalAmount] = useState(totalDefault.toString());
   const [cashReceived, setCashReceived] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
-
+  // In Home2.jsx, update the debug log to check for category:
   const handleCreateTransaction = async () => {
     try {
+      // DEBUG: Check if cart items have cost AND category
+      console.log(
+        "🛒 CART ITEMS DEBUG:",
+        cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          categoryName: item.categoryName, // Check if this exists
+          category: item.category, // Or this
+          cost: item.cost,
+          price: item.price,
+          qty: item.qty,
+          hasCost: item.cost !== undefined,
+          hasCategory: !!(item.categoryName || item.category),
+        }))
+      );
+
       const transactionData = {
-        items: cart, // Your cart items from context
-        total_amount: totalNum, // The final amount (after discounts)
-        payment_method: paymentMethod, // Cash or GCash
+        items: cart,
+        total_amount: totalNum,
+        payment_method: paymentMethod,
       };
+
+      console.log("📦 SENDING TRANSACTION DATA:", transactionData);
 
       const response = await axios.post(
         "http://localhost:5000/api/transactions",
         transactionData
       );
 
-      console.log("Transaction created:", response.data);
-      // You can show a success message or handle the response
+      console.log("✅ TRANSACTION CREATED:", response.data);
     } catch (error) {
-      console.error("Failed to create transaction:", error);
-      // Handle error (show error message to user)
+      console.error("❌ FAILED TO CREATE TRANSACTION:", error);
+      console.error("📋 ERROR DETAILS:", error.response?.data);
     }
   };
-
   // ✅ FIX: Update totalAmount whenever totalDefault changes
   useEffect(() => {
     setTotalAmount(totalDefault.toString());

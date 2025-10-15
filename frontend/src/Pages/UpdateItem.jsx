@@ -44,6 +44,7 @@ export default function UpdateItem() {
   const [name, setName] = useState("");
   const [categories, setCategories] = useState([]);
   const [category, setCategory] = useState("");
+  const [cost, setCost] = useState(""); // Added cost state
   const [price, setPrice] = useState("");
   const [type, setType] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
@@ -82,6 +83,7 @@ export default function UpdateItem() {
     console.log("Editing item:", item);
 
     setName(item.name || "");
+    setCost(item.cost || ""); // Added cost
     setPrice(item.price || "");
     setType(item.type || "");
     const cat = item.categoryName || item.category || "";
@@ -152,7 +154,8 @@ export default function UpdateItem() {
       const formData = new FormData();
       formData.append("name", name);
       formData.append("category", category);
-      formData.append("price", price);
+      formData.append("cost", cost || ""); // Added cost
+      formData.append("price", price || "");
       formData.append("type", type);
 
       if (type === "color") {
@@ -168,6 +171,7 @@ export default function UpdateItem() {
       console.log("Sending update with:", {
         name,
         category,
+        cost, // Added cost
         price,
         type,
         selectedColor,
@@ -243,7 +247,7 @@ export default function UpdateItem() {
             width: "90%",
             maxWidth: 800,
             display: "flex",
-            flexDirection: "column", // FIXED: Added missing quote
+            flexDirection: "column",
             gap: 3,
           }}
           elevation={3}
@@ -277,20 +281,39 @@ export default function UpdateItem() {
             ))}
           </TextField>
 
-          {/* Price */}
-          <TextField
-            label="Price"
-            color="secondary"
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            sx={{ width: "50%" }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">₱</InputAdornment>
-              ),
-            }}
-          />
+          {/* Cost and Price in one line */}
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <TextField
+              label="Cost"
+              color="secondary"
+              type="number"
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              fullWidth
+              InputProps={{
+                inputProps: { min: 0, step: "0.01" },
+                startAdornment: (
+                  <InputAdornment position="start">₱</InputAdornment>
+                ),
+              }}
+              placeholder="0.00"
+            />
+            <TextField
+              label="Price"
+              color="secondary"
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              fullWidth
+              InputProps={{
+                inputProps: { min: 0, step: "0.01" },
+                startAdornment: (
+                  <InputAdornment position="start">₱</InputAdornment>
+                ),
+              }}
+              placeholder="0.00"
+            />
+          </Box>
 
           {/* Type */}
           <Box>

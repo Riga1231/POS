@@ -17,6 +17,14 @@ import MenuItem from "@mui/material/MenuItem";
 import InputBase from "@mui/material/InputBase";
 import ListItemButton from "@mui/material/ListItemButton";
 import { useNavigate, useLocation } from "react-router-dom";
+import Button from "@mui/material/Button";
+import axios from "axios";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import TextField from "@mui/material/TextField";
+import LockIcon from "@mui/icons-material/Lock";
 
 import PointOfSaleIcon from "@mui/icons-material/PointOfSaleOutlined";
 import Inventory2Icon from "@mui/icons-material/Inventory2Outlined";
@@ -34,36 +42,52 @@ const TransparentInput = styled(InputBase)(({ theme }) => ({
 }));
 
 // Drawer Nav Item
-const DrawerNavItem = memo(({ item, navigate, onClick, active }) => (
-  <ListItemButton
-    onClick={() => {
-      navigate(item.link);
-      onClick?.();
-    }}
-    sx={{
-      color: active ? "#5D336E" : "gray",
-      backgroundColor: active ? "rgba(93, 51, 110, 0.1)" : "transparent",
-      borderRadius: 1,
-      "&:hover": {
-        backgroundColor: active ? "rgba(93, 51, 110, 0.15)" : "#f5f5f5",
-      },
-    }}
-  >
-    <ListItemIcon
-      sx={{
-        color: active ? "#5D336E" : "gray",
-        minWidth: 40,
-      }}
-    >
-      {item.icon}
-    </ListItemIcon>
-    <ListItemText primary={item.text} />
-  </ListItemButton>
-));
+const DrawerNavItem = memo(
+  ({ item, navigate, onClick, active, onBackOfficeClick, currentLocation }) => {
+    return (
+      <ListItemButton
+        onClick={() => {
+          if (item.link === "/backoffice") {
+            onBackOfficeClick?.();
+          } else {
+            navigate(item.link);
+            onClick?.();
+          }
+        }}
+        sx={{
+          color: active ? "#5D336E" : "gray",
+          backgroundColor: active ? "rgba(93, 51, 110, 0.1)" : "transparent",
+          borderRadius: 1,
+          "&:hover": {
+            backgroundColor: active ? "rgba(93, 51, 110, 0.15)" : "#f5f5f5",
+          },
+        }}
+      >
+        <ListItemIcon
+          sx={{
+            color: active ? "#5D336E" : "gray",
+            minWidth: 40,
+          }}
+        >
+          {item.icon}
+        </ListItemIcon>
+        <ListItemText primary={item.text} />
+      </ListItemButton>
+    );
+  }
+);
 
 // Drawer content
 const DrawerContent = memo(
-  ({ navItems, theme, navigate, closeDrawer, currentPath }) => (
+  ({
+    navItems,
+    theme,
+    navigate,
+    closeDrawer,
+    currentPath,
+    onBackOfficeClick,
+    currentLocation,
+  }) => (
     <Box sx={{ width: 250 }} role="presentation">
       <Box
         sx={{
@@ -106,6 +130,8 @@ const DrawerContent = memo(
             navigate={navigate}
             onClick={closeDrawer}
             active={currentPath === item.link}
+            onBackOfficeClick={onBackOfficeClick}
+            currentLocation={currentLocation}
           />
         ))}
       </List>
@@ -131,12 +157,21 @@ const Header = memo(function Header({
   const [searchActive, setSearchActive] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
 
+  // PIN Authentication states
+  const [pin, setPin] = useState("");
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinError, setPinError] = useState("");
+  const [pendingNavigation, setPendingNavigation] = useState("");
+
   const navItems = [
     { text: "Sales", icon: <PointOfSaleIcon />, link: "/" },
     { text: "Items", icon: <Inventory2Icon />, link: "/items/items" },
     { text: "Transactions", icon: <ReceiptLongIcon />, link: "/transactions" },
-    { text: "Back Office", icon: <BusinessIcon />, link: "/backoffice" },
-    { text: "Settings", icon: <SettingsIcon />, link: "/settings" },
+    {
+      text: "Back Office",
+      icon: <BusinessIcon />,
+      link: "/backoffice",
+    },
   ];
 
   // ✅ Only include dropdown if there are categories
@@ -169,6 +204,58 @@ const Header = memo(function Header({
 
   const handleSearchActivate = useCallback(() => setSearchActive(true), []);
   const handleSearchDeactivate = useCallback(() => setSearchActive(false), []);
+
+  // PIN Authentication handlers - UPDATED FOR DATABASE
+  const handleBackOfficeClick = () => {
+    setShowPinModal(true);
+    setPin("");
+    setPinError("");
+  };
+  const handlePinSubmit = async (e) => {
+    if (e) e.preventDefault();
+    console.log("🔐 PIN submitted:", pin);
+
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/api/backoffice/verify-pin",
+        { pin }
+      );
+      console.log("✅ PIN response:", response.data);
+
+      if (response.data.success) {
+        // ✅ SET SESSION STORAGE FOR AUTH
+        sessionStorage.setItem("backofficeAuthenticated", "true");
+
+        console.log("🎯 Success! Navigating to /backoffice");
+        setShowPinModal(false);
+        setPin("");
+        setPinError("");
+
+        setTimeout(() => {
+          navigate("/backoffice");
+        }, 100);
+      }
+    } catch (err) {
+      console.error("❌ PIN error:", err.response?.data);
+      setPinError(
+        err.response?.data?.error || "Invalid PIN. Please try again."
+      );
+      setPin("");
+    }
+  };
+
+  const handlePinChange = (e) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 4); // Only numbers, max 4 digits
+    setPin(value);
+    setPinError("");
+  };
+
+  const handleClosePinModal = () => {
+    setShowPinModal(false);
+    setPin("");
+    setPinError("");
+    setPendingNavigation("");
+  };
 
   const renderLeftButton = useCallback(() => {
     if (!showNav) return null;
@@ -265,8 +352,114 @@ const Header = memo(function Header({
           navigate={navigate}
           closeDrawer={closeDrawer}
           currentPath={location.pathname}
+          onBackOfficeClick={handleBackOfficeClick}
+          currentLocation={location}
         />
       </Drawer>
+
+      {/* PIN Modal */}
+      <Dialog
+        open={showPinModal}
+        onClose={handleClosePinModal}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            padding: 2,
+          },
+        }}
+      >
+        <DialogTitle sx={{ textAlign: "center", pb: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 1,
+            }}
+          >
+            <LockIcon color="secondary" />
+            <Typography
+              variant="h6"
+              sx={{ color: "#5D336E", fontWeight: "bold" }}
+            >
+              Admin Access Required
+            </Typography>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent sx={{ textAlign: "center" }}>
+          <Typography variant="body1" sx={{ mb: 3, color: "text.secondary" }}>
+            Enter PIN to access Back Office
+          </Typography>
+
+          <TextField
+            autoFocus
+            fullWidth
+            type="password"
+            value={pin}
+            onChange={handlePinChange}
+            placeholder="Enter 4-digit PIN"
+            inputProps={{
+              maxLength: 4,
+              style: {
+                textAlign: "center",
+                fontSize: "24px",
+                letterSpacing: "8px",
+              },
+            }}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                "& input": {
+                  textAlign: "center",
+                  fontSize: "24px",
+                  letterSpacing: "8px",
+                  padding: "12px",
+                },
+              },
+            }}
+          />
+
+          {pinError && (
+            <Typography color="error" sx={{ mt: 2 }}>
+              {pinError}
+            </Typography>
+          )}
+
+          {/* Add helpful hint for first-time users */}
+          <Typography
+            variant="caption"
+            sx={{ mt: 2, display: "block", color: "text.secondary" }}
+          >
+            First time? Use default PIN: 1234
+          </Typography>
+        </DialogContent>
+
+        <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 3 }}>
+          <Button
+            variant="outlined"
+            onClick={handleClosePinModal}
+            sx={{ minWidth: 100 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            onClick={handlePinSubmit}
+            sx={{
+              minWidth: 100,
+              backgroundColor: "#5D336E",
+              "&:hover": {
+                backgroundColor: "#4a2a5a",
+              },
+            }}
+          >
+            Enter
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 });

@@ -64,7 +64,7 @@ const deleteFile = (filePath) => {
 router.post("/", upload.single("photo"), async (req, res) => {
   try {
     const db = req.db;
-    const { name, category_id, price, type, value } = req.body;
+    const { name, category_id, cost, price, type, value } = req.body;
 
     // ✅ Validate type
     if (!["color", "image"].includes(type)) {
@@ -81,15 +81,16 @@ router.post("/", upload.single("photo"), async (req, res) => {
 
     // ✅ Insert into database
     const result = await db.run(
-      `INSERT INTO item (name, category_id, price, type, value)
-       VALUES (?, ?, ?, ?, ?)`,
-      [name, category_id, price || null, type, finalValue]
+      `INSERT INTO item (name, category_id, cost, price, type, value)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [name, category_id, cost || null, price || null, type, finalValue]
     );
 
     res.status(201).json({
       id: result.lastID,
       name,
       category_id,
+      cost,
       price,
       type,
       value: finalValue,
@@ -134,7 +135,7 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", upload.single("photo"), async (req, res) => {
   try {
     const db = req.db;
-    const { name, category, price, type, value } = req.body;
+    const { name, category, cost, price, type, value } = req.body;
 
     console.log("Update request body:", req.body);
     console.log("File:", req.file);
@@ -167,8 +168,16 @@ router.put("/:id", upload.single("photo"), async (req, res) => {
     }
 
     await db.run(
-      `UPDATE item SET name=?, category_id=?, price=?, type=?, value=? WHERE id=?`,
-      [name, categoryRecord.id, price || null, type, finalValue, req.params.id]
+      `UPDATE item SET name=?, category_id=?, cost=?, price=?, type=?, value=? WHERE id=?`,
+      [
+        name,
+        categoryRecord.id,
+        cost || null,
+        price || null,
+        type,
+        finalValue,
+        req.params.id,
+      ]
     );
 
     res.json({ message: "Item updated successfully" });

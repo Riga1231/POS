@@ -5,6 +5,7 @@ import { open } from "sqlite";
 import categoryRoutes from "./category.js";
 import itemRoutes from "./item.js";
 import transactionRoutes from "./transaction.js"; // 👈 Import transactions
+import backofficeRoutes from "./backoffice.js";
 import path from "path";
 const app = express();
 const PORT = 5000;
@@ -37,6 +38,15 @@ app.use(
   },
   itemRoutes
 );
+app.use(
+  "/api/backoffice",
+  async (req, res, next) => {
+    req.db = await dbPromise;
+    next();
+  },
+  backofficeRoutes
+);
+
 // 👈 Add transactions route
 app.use(
   "/api/transactions",

@@ -19,35 +19,44 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Total amount is required" });
     }
 
+    // Calculate total cost from items
+    const total_cost = items.reduce((sum, item) => {
+      const itemCost = item.cost || 0;
+      return sum + itemCost * item.qty;
+    }, 0);
+
     // Start transaction
     await db.run("BEGIN TRANSACTION");
 
     try {
-      // 1. Insert main transaction
+      // 1. Insert main transaction with total_cost
       const transactionResult = await db.run(
-        `INSERT INTO transactions (total_amount) VALUES (?)`,
-        [total_amount]
+        `INSERT INTO transactions (total_amount, total_cost) VALUES (?, ?)`,
+        [total_amount, total_cost]
       );
       const transactionId = transactionResult.lastID;
 
-      // 2. Insert transaction items
+      // 2. Insert transaction items with cost data, item_name, AND category_name
       for (const item of items) {
+        const unit_cost = item.cost || 0;
+        const total_item_cost = unit_cost * item.qty;
+
         await db.run(
-          `INSERT INTO transaction_items (transaction_id, item_id, qty, unit_price, total_price) 
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO transaction_items (transaction_id, item_id, item_name, category_name, qty, unit_price, unit_cost, total_price, total_cost) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             transactionId,
             item.id,
+            item.name, // Store item name
+            item.categoryName || item.category || "Uncategorized", // Store category name
             item.qty,
-            item.price, // unit price at time of purchase
-            item.qty * item.price, // total price for this item
+            item.price,
+            unit_cost,
+            item.qty * item.price,
+            total_item_cost,
           ]
         );
       }
-
-      // 3. Optional: Insert payment method if you have a payments table
-      // If you want to store payment method, you might need a payments table
-      // For now, we'll just return success
 
       await db.run("COMMIT");
 
@@ -55,6 +64,8 @@ router.post("/", async (req, res) => {
         message: "Transaction created successfully",
         transaction_id: transactionId,
         total_amount: total_amount,
+        total_cost: total_cost,
+        total_profit: total_amount - total_cost,
         items_count: items.length,
       });
     } catch (error) {
@@ -77,6 +88,7 @@ router.get("/", async (req, res) => {
     const transactions = await db.all(`
       SELECT 
         t.*,
+        (t.total_amount - t.total_cost) as total_profit,
         COUNT(ti.id) as items_count
       FROM transactions t
       LEFT JOIN transaction_items ti ON t.id = ti.transaction_id
@@ -99,7 +111,7 @@ router.get("/:id", async (req, res) => {
 
     // Get transaction details
     const transaction = await db.get(
-      `SELECT * FROM transactions WHERE id = ?`,
+      `SELECT *, (total_amount - total_cost) as total_profit FROM transactions WHERE id = ?`,
       [transactionId]
     );
 
@@ -107,15 +119,20 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Transaction not found" });
     }
 
-    // Get transaction items with item details
+    // Get transaction items - now using the stored item_name and category_name
     const transactionItems = await db.all(
       `
       SELECT 
         ti.*,
-        i.name as item_name,
-        i.type as item_type
+        ti.item_name,           -- Use the stored item_name
+        ti.category_name,       -- Use the stored category_name
+        i.name as current_item_name,    -- Optional: current name if item exists
+        c.name as current_category_name, -- Optional: current category if exists
+        i.type as item_type,
+        (ti.total_price - ti.total_cost) as item_profit
       FROM transaction_items ti
       LEFT JOIN item i ON ti.item_id = i.id
+      LEFT JOIN category c ON i.category_id = c.id
       WHERE ti.transaction_id = ?
     `,
       [transactionId]

@@ -24,13 +24,26 @@ export default function Home1({ goTo }) {
         const categoriesRes = await axios.get(
           "http://localhost:5000/api/categories"
         );
-        const categoryNames = categoriesRes.data.map((c) => c.name);
+        const categoriesData = categoriesRes.data; // Store full category objects
+        const categoryNames = categoriesData.map((c) => c.name);
         setCategories(categoryNames);
 
         // Fetch items
         const itemsRes = await axios.get("http://localhost:5000/api/items");
         console.log("Items from API:", itemsRes.data);
-        setItems(itemsRes.data);
+
+        // Map category_id to category name for each item
+        const itemsWithCategoryNames = itemsRes.data.map((item) => {
+          const categoryObj = categoriesData.find(
+            (cat) => cat.id === item.category_id
+          );
+          return {
+            ...item,
+            categoryName: categoryObj ? categoryObj.name : "Unknown",
+          };
+        });
+
+        setItems(itemsWithCategoryNames);
       } catch (err) {
         console.error("Failed to fetch data:", err);
         setCategories(["Electronics", "Clothing", "Books", "Furniture"]);
@@ -41,9 +54,15 @@ export default function Home1({ goTo }) {
     fetchData();
   }, []);
 
-  // Handle item selection - add to cart
+  // Handle item selection - add to cart WITH category name
   const handleItemSelect = (item) => {
-    addToCart(item);
+    // Ensure the item has categoryName before adding to cart
+    const itemWithCategory = {
+      ...item,
+      categoryName: item.categoryName || "Unknown", // Make sure categoryName is included
+    };
+    console.log("Adding to cart:", itemWithCategory);
+    addToCart(itemWithCategory);
   };
 
   const itemsPerPage = 15;

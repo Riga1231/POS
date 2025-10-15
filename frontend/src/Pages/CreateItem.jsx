@@ -29,6 +29,7 @@ export default function CreateItem() {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [cost, setCost] = useState(""); // New cost state
   const [price, setPrice] = useState("");
   const [photo, setPhoto] = useState(null);
   const [type, setType] = useState(""); // "color" or "image"
@@ -86,7 +87,6 @@ export default function CreateItem() {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
   const handleSave = async () => {
     if (!validateFields()) {
       setSnackbar({
@@ -101,6 +101,7 @@ export default function CreateItem() {
       const formData = new FormData();
       formData.append("name", name);
       formData.append("category_id", category);
+      formData.append("cost", cost || ""); // Add this line
       formData.append("price", price || "");
       formData.append("type", type);
 
@@ -129,6 +130,7 @@ export default function CreateItem() {
       // Reset fields
       setName("");
       setCategory("");
+      setCost(""); // Add this
       setPrice("");
       setPhoto(null);
       setType("");
@@ -189,15 +191,35 @@ export default function CreateItem() {
             )}
           </TextField>
 
-          {/* Price (optional) */}
-          <TextField
-            label="Price"
-            color="secondary"
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            sx={{ width: "50%" }}
-          />
+          {/* Cost and Price in one line */}
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <TextField
+              label="Cost"
+              color="secondary"
+              type="number"
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              fullWidth
+              InputProps={{
+                inputProps: { min: 0, step: "0.01" },
+                startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
+              }}
+              placeholder="0.00"
+            />
+            <TextField
+              label="Price"
+              color="secondary"
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              fullWidth
+              InputProps={{
+                inputProps: { min: 0, step: "0.01" },
+                startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
+              }}
+              placeholder="0.00"
+            />
+          </Box>
 
           {/* Item Type Selection */}
           <Box>
