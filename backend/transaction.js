@@ -7,7 +7,7 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   try {
     const db = req.db;
-    const { items, total_amount, payment_method } = req.body;
+    const { items, total_amount, payment_method = "cash" } = req.body; // Default to 'cash'
 
     // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -17,6 +17,16 @@ router.post("/", async (req, res) => {
     }
     if (total_amount === undefined || total_amount === null) {
       return res.status(400).json({ error: "Total amount is required" });
+    }
+
+    // Validate payment method
+    const validPaymentMethods = ["cash", "gcash"]; // Add more as needed
+    if (!validPaymentMethods.includes(payment_method)) {
+      return res.status(400).json({
+        error:
+          "Invalid payment method. Must be one of: " +
+          validPaymentMethods.join(", "),
+      });
     }
 
     // Calculate total cost from items
@@ -29,10 +39,10 @@ router.post("/", async (req, res) => {
     await db.run("BEGIN TRANSACTION");
 
     try {
-      // 1. Insert main transaction with total_cost
+      // 1. Insert main transaction with total_cost AND payment_method
       const transactionResult = await db.run(
-        `INSERT INTO transactions (total_amount, total_cost) VALUES (?, ?)`,
-        [total_amount, total_cost]
+        `INSERT INTO transactions (total_amount, total_cost, payment_method) VALUES (?, ?, ?)`,
+        [total_amount, total_cost, payment_method]
       );
       const transactionId = transactionResult.lastID;
 
@@ -67,6 +77,7 @@ router.post("/", async (req, res) => {
         total_cost: total_cost,
         total_profit: total_amount - total_cost,
         items_count: items.length,
+        payment_method: payment_method,
       });
     } catch (error) {
       await db.run("ROLLBACK");
@@ -80,7 +91,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// 🟢 GET ALL TRANSACTIONS
+// 🟢 GET ALL TRANSACTIONS (updated to include payment_method)
 router.get("/", async (req, res) => {
   try {
     const db = req.db;
@@ -103,7 +114,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 🟢 GET SINGLE TRANSACTION WITH ITEMS
+// 🟢 GET SINGLE TRANSACTION WITH ITEMS (no changes needed here)
 router.get("/:id", async (req, res) => {
   try {
     const db = req.db;

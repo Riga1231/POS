@@ -14,6 +14,9 @@ import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import PrintIcon from "@mui/icons-material/Print";
 import { useCart } from "../context/CartContext";
 import axios from "axios";
+import Alert from "@mui/material/Alert";
+import Snackbar from "@mui/material/Snackbar";
+
 export default function Home2({ goTo }) {
   const theme = useTheme();
   const { cart, clearCart } = useCart();
@@ -28,6 +31,10 @@ export default function Home2({ goTo }) {
   const [totalAmount, setTotalAmount] = useState(totalDefault.toString());
   const [cashReceived, setCashReceived] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertSeverity, setAlertSeverity] = useState("error");
+
   // In Home2.jsx, update the debug log to check for category:
   const handleCreateTransaction = async () => {
     try {
@@ -61,11 +68,15 @@ export default function Home2({ goTo }) {
       );
 
       console.log("✅ TRANSACTION CREATED:", response.data);
+      return true; // Success
     } catch (error) {
       console.error("❌ FAILED TO CREATE TRANSACTION:", error);
       console.error("📋 ERROR DETAILS:", error.response?.data);
+      showAlert("Failed to create transaction: " + error.message, "error");
+      return false; // Failure
     }
   };
+
   // ✅ FIX: Update totalAmount whenever totalDefault changes
   useEffect(() => {
     setTotalAmount(totalDefault.toString());
@@ -75,9 +86,45 @@ export default function Home2({ goTo }) {
 
   const handleQuickAmount = (amount) => setCashReceived(amount.toString());
 
-  const handleCharge = () => {
-    handleCreateTransaction(); // Create transaction in database
-    setPage("charge"); // Then show charge screen
+  const showAlert = (message, severity = "error") => {
+    setAlertMessage(message);
+    setAlertSeverity(severity);
+    setAlertOpen(true);
+  };
+
+  const handleCharge = async () => {
+    // Validate if cart is empty
+    if (cart.length === 0) {
+      showAlert("Cart is empty. Please add items before charging.", "warning");
+      return;
+    }
+
+    // Validate payment amount
+    if (paymentMethod === "cash") {
+      if (paid < totalNum) {
+        showAlert(
+          `Insufficient payment! Total: ₱${totalNum.toFixed(
+            2
+          )}, Received: ₱${paid.toFixed(2)}`,
+          "error"
+        );
+        return;
+      }
+    }
+
+    // For non-cash payments, validate that payment method is selected
+    if (!paymentMethod) {
+      showAlert("Please select a payment method.", "warning");
+      return;
+    }
+
+    // Create transaction in database
+    const success = await handleCreateTransaction();
+
+    if (success) {
+      // Only proceed to charge screen if transaction was created successfully
+      setPage("charge");
+    }
   };
 
   const handleNewSale = () => {
@@ -165,6 +212,12 @@ export default function Home2({ goTo }) {
               margin-top: 20px;
               font-style: italic;
             }
+            .insufficient { 
+              color: red; 
+              font-weight: bold;
+              text-align: center;
+              margin: 10px 0;
+            }
             @media print {
               body { margin: 0; }
             }
@@ -237,6 +290,10 @@ export default function Home2({ goTo }) {
   const paid = Number(cashReceived) || 0;
   const change = paid - totalNum;
 
+  // Check if payment is sufficient
+  const isPaymentSufficient = paid >= totalNum;
+  const isCartEmpty = cart.length === 0;
+
   return (
     <Box sx={{ display: "flex", height: "100vh" }}>
       {/* Left drawer */}
@@ -266,6 +323,22 @@ export default function Home2({ goTo }) {
             gap: 3,
           }}
         >
+          {/* Alert Snackbar */}
+          <Snackbar
+            open={alertOpen}
+            autoHideDuration={6000}
+            onClose={() => setAlertOpen(false)}
+            anchorOrigin={{ vertical: "top", horizontal: "center" }}
+          >
+            <Alert
+              onClose={() => setAlertOpen(false)}
+              severity={alertSeverity}
+              sx={{ width: "100%" }}
+            >
+              {alertMessage}
+            </Alert>
+          </Snackbar>
+
           {page === "main" ? (
             <>
               {/* Total Amount (editable) */}
@@ -304,6 +377,12 @@ export default function Home2({ goTo }) {
                   width: 400,
                   input: { fontSize: 24, textAlign: "center" },
                 }}
+                error={paid > 0 && !isPaymentSufficient}
+                helperText={
+                  paid > 0 && !isPaymentSufficient
+                    ? `Insufficient! Need ₱${(totalNum - paid).toFixed(2)} more`
+                    : ""
+                }
               />
 
               {/* Quick amount buttons */}
@@ -348,20 +427,40 @@ export default function Home2({ goTo }) {
                 />
               </RadioGroup>
 
+              {/* Empty cart warning */}
+              {isCartEmpty && (
+                <Alert severity="warning" sx={{ width: 400 }}>
+                  Cart is empty. Please add items before charging.
+                </Alert>
+              )}
+
               {/* Charge button */}
               <Button
                 variant="contained"
                 sx={{
-                  bgcolor: theme.palette.secondary.main,
+                  bgcolor:
+                    isPaymentSufficient && !isCartEmpty
+                      ? theme.palette.secondary.main
+                      : "#ccc",
                   color: "white",
-                  "&:hover": { bgcolor: theme.palette.secondary.dark },
+                  "&:hover": {
+                    bgcolor:
+                      isPaymentSufficient && !isCartEmpty
+                        ? theme.palette.secondary.dark
+                        : "#ccc",
+                  },
                   width: 250,
                   height: 60,
                   fontSize: 20,
                 }}
                 onClick={handleCharge}
+                disabled={!isPaymentSufficient || isCartEmpty}
               >
-                Charge
+                {isCartEmpty
+                  ? "Cart Empty"
+                  : !isPaymentSufficient
+                  ? "Insufficient Payment"
+                  : "Charge"}
               </Button>
             </>
           ) : (

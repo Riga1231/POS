@@ -6,6 +6,7 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import Divider from "@mui/material/Divider";
 import { useTheme } from "@mui/material/styles";
+import Chip from "@mui/material/Chip";
 
 const TransactionList = memo(function TransactionList({
   transactions,
@@ -26,6 +27,40 @@ const TransactionList = memo(function TransactionList({
       minute: "2-digit",
       hour12: true,
     });
+  };
+
+  // Get chip color based on payment method
+  const getPaymentMethodColor = (method) => {
+    switch (method?.toLowerCase()) {
+      case "cash":
+        return "success";
+      case "gcash":
+        return "primary";
+      case "card":
+        return "secondary";
+      case "bank_transfer":
+        return "info";
+      default:
+        return "default";
+    }
+  };
+
+  // Format payment method for display
+  const formatPaymentMethod = (method) => {
+    if (!method) return "Unknown";
+
+    switch (method.toLowerCase()) {
+      case "cash":
+        return "Cash";
+      case "gcash":
+        return "GCash";
+      case "card":
+        return "Credit Card";
+      case "bank_transfer":
+        return "Bank Transfer";
+      default:
+        return method.charAt(0).toUpperCase() + method.slice(1);
+    }
   };
 
   if (loading) {
@@ -70,9 +105,26 @@ const TransactionList = memo(function TransactionList({
                   }}
                 >
                   <Box>
-                    <Typography variant="h6" component="div">
-                      Transaction #{transaction.id}
-                    </Typography>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        mb: 0.5,
+                      }}
+                    >
+                      <Typography variant="h6" component="div">
+                        Transaction #{transaction.id}
+                      </Typography>
+                      <Chip
+                        label={formatPaymentMethod(transaction.payment_method)}
+                        color={getPaymentMethodColor(
+                          transaction.payment_method
+                        )}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </Box>
                     <Typography variant="body2" color="text.secondary">
                       {formatDate(transaction.transaction_date)}
                     </Typography>

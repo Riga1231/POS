@@ -14,6 +14,7 @@ import Divider from "@mui/material/Divider";
 import Avatar from "@mui/material/Avatar";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
+import { useAuth } from "../context/AuthContext";
 import InputBase from "@mui/material/InputBase";
 import ListItemButton from "@mui/material/ListItemButton";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -201,7 +202,7 @@ const Header = memo(function Header({
     (e) => onSearch?.(e.target.value),
     [onSearch]
   );
-
+  const { grantAccess } = useAuth();
   const handleSearchActivate = useCallback(() => setSearchActive(true), []);
   const handleSearchDeactivate = useCallback(() => setSearchActive(false), []);
 
@@ -213,30 +214,27 @@ const Header = memo(function Header({
   };
   const handlePinSubmit = async (e) => {
     if (e) e.preventDefault();
-    console.log("🔐 PIN submitted:", pin);
 
     try {
       const response = await axios.post(
         "http://localhost:5000/api/backoffice/verify-pin",
         { pin }
       );
-      console.log("✅ PIN response:", response.data);
 
       if (response.data.success) {
-        // ✅ SET SESSION STORAGE FOR AUTH
-        sessionStorage.setItem("backofficeAuthenticated", "true");
+        console.log("🎯 Granting access...");
+        grantAccess();
 
-        console.log("🎯 Success! Navigating to /backoffice");
-        setShowPinModal(false);
-        setPin("");
-        setPinError("");
-
+        // Wait for state update then navigate
         setTimeout(() => {
+          console.log("🎯 Navigating to /backoffice");
+          setShowPinModal(false);
+          setPin("");
+          setPinError("");
           navigate("/backoffice");
-        }, 100);
+        }, 50);
       }
     } catch (err) {
-      console.error("❌ PIN error:", err.response?.data);
       setPinError(
         err.response?.data?.error || "Invalid PIN. Please try again."
       );

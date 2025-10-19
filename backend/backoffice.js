@@ -2,6 +2,52 @@ import express from "express";
 
 const router = express.Router();
 
+router.delete("/reset-all", async (req, res) => {
+  try {
+    const db = req.db;
+
+    // Start transaction
+    await db.run("BEGIN TRANSACTION");
+
+    try {
+      // Delete data from all tables in correct order
+      await db.run("DELETE FROM transaction_items");
+      await db.run("DELETE FROM transactions");
+      await db.run("DELETE FROM item");
+      await db.run("DELETE FROM category");
+
+      // Reset auto-increment counters
+      await db.run("DELETE FROM sqlite_sequence");
+
+      // Commit transaction
+      await db.run("COMMIT");
+
+      console.log("✅ All database data deleted successfully");
+      res.json({
+        success: true,
+        message: "All data has been deleted successfully",
+        tables_cleared: [
+          "transaction_items",
+          "transactions",
+          "item",
+          "category",
+          "admin_pin",
+        ],
+      });
+    } catch (transactionError) {
+      // Rollback on error
+      await db.run("ROLLBACK");
+      throw transactionError;
+    }
+  } catch (err) {
+    console.error("❌ Failed to delete all data:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete all data: " + err.message,
+    });
+  }
+});
+
 // 🟢 VERIFY PIN (with database)
 router.post("/verify-pin", async (req, res) => {
   try {

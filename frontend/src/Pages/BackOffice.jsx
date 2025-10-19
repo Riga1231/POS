@@ -30,6 +30,10 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import WarningIcon from "@mui/icons-material/Warning";
+import CircularProgress from "@mui/material/CircularProgress";
 
 // ---------- Theme ----------
 const purpleTheme = createTheme({
@@ -91,14 +95,12 @@ const IconWrapper = styled(Box)(({ trend }) => ({
 export default function BackOffice() {
   console.log("🚀 BackOffice component mounted");
 
+  const { isAuthorized } = useAuth();
   const navigate = useNavigate();
+
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Security state - ADDED BACK
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [securityChecked, setSecurityChecked] = useState(false);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -115,40 +117,27 @@ export default function BackOffice() {
   const [pinError, setPinError] = useState("");
   const [pinSuccess, setPinSuccess] = useState("");
 
-  // NEW: Session-based authentication check
+  // Reset Data states
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState("");
+  const [resetConfirmation, setResetConfirmation] = useState("");
+
+  // Redirect if not authorized
   useEffect(() => {
-    const checkAuthentication = async () => {
-      try {
-        // Check if user has a valid session (you can use sessionStorage or a backend check)
-        const hasRecentAuth = sessionStorage.getItem("backofficeAuthenticated");
+    if (!isAuthorized) {
+      console.log("🔐 No authorization, redirecting to home");
+      navigate("/");
+    }
+  }, [isAuthorized, navigate]);
 
-        if (!hasRecentAuth) {
-          // If no recent auth, redirect to home
-          console.log("🔐 No valid session, redirecting to home");
-          navigate("/");
-          return;
-        }
-
-        setIsAuthenticated(true);
-        setSecurityChecked(true);
-
-        // Fetch data after authentication check
-        fetchDashboardData(filters);
-      } catch (err) {
-        console.error("Security check failed:", err);
-        navigate("/");
-      }
-    };
-
-    checkAuthentication();
-  }, [navigate]);
-
-  // Fetch dashboard data only when authenticated
+  // Fetch dashboard data only when authorized
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthorized) {
       fetchDashboardData(filters);
     }
-  }, [isAuthenticated, filters]);
+  }, [isAuthorized, filters]);
 
   // Fetch dashboard data with current filters
   const fetchDashboardData = async (currentFilters) => {
@@ -187,12 +176,12 @@ export default function BackOffice() {
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
-    if (isAuthenticated) {
+    if (isAuthorized) {
       fetchDashboardData(newFilters);
     }
   };
 
-  // PIN Change handlers - UPDATED FOR DATABASE
+  // PIN Change handlers
   const handleOpenPinDialog = () => {
     setShowPinDialog(true);
     setCurrentPin("");
@@ -243,6 +232,50 @@ export default function BackOffice() {
     } catch (err) {
       setPinError(err.response?.data?.error || "Failed to change PIN");
       setPinSuccess("");
+    }
+  };
+
+  // Reset Data handlers
+  const handleOpenResetDialog = () => {
+    setShowResetDialog(true);
+    setResetError("");
+    setResetSuccess("");
+    setResetConfirmation("");
+  };
+
+  const handleCloseResetDialog = () => {
+    setShowResetDialog(false);
+    setResetError("");
+    setResetSuccess("");
+    setResetConfirmation("");
+  };
+
+  const handleResetAllData = async () => {
+    setResetLoading(true);
+    setResetError("");
+    setResetSuccess("");
+
+    try {
+      const response = await axios.delete(
+        "http://localhost:5000/api/backoffice/reset-all"
+      );
+
+      if (response.data.success) {
+        setResetSuccess("All data has been reset successfully!");
+        setResetError("");
+
+        // Refresh dashboard data after reset
+        setTimeout(() => {
+          fetchDashboardData(filters);
+          setShowResetDialog(false);
+          setResetConfirmation("");
+        }, 2000);
+      }
+    } catch (err) {
+      setResetError(err.response?.data?.error || "Failed to reset data");
+      setResetSuccess("");
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -327,53 +360,9 @@ export default function BackOffice() {
     ];
   };
 
-  // Show loading while checking security
-  if (!securityChecked) {
-    return (
-      <ThemeProvider theme={purpleTheme}>
-        <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-          <Header title="Back Office Analytics" showNav={true} />
-          <Box
-            sx={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Typography>Checking authentication...</Typography>
-          </Box>
-        </Box>
-      </ThemeProvider>
-    );
-  }
-
-  // Redirect if not authenticated
-  if (!isAuthenticated && securityChecked) {
-    return (
-      <ThemeProvider theme={purpleTheme}>
-        <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-          <Header title="Back Office Analytics" showNav={true} />
-          <Box
-            sx={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "column",
-              gap: 2,
-            }}
-          >
-            <Typography variant="h6" color="error">
-              Access Denied
-            </Typography>
-            <Button variant="contained" onClick={() => navigate("/")}>
-              Go to Home
-            </Button>
-          </Box>
-        </Box>
-      </ThemeProvider>
-    );
+  // Don't render anything if not authorized (ProtectedRoute handles redirect)
+  if (!isAuthorized) {
+    return null;
   }
 
   // Show loading while fetching data
@@ -506,15 +495,24 @@ export default function BackOffice() {
               sx={{ width: 150 }}
             />
 
-            {/* Change PIN Button */}
-            <Button
-              variant="outlined"
-              startIcon={<LockIcon />}
-              onClick={handleOpenPinDialog}
-              sx={{ ml: "auto" }}
-            >
-              Change PIN
-            </Button>
+            {/* Action Buttons - Moved to the right */}
+            <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<LockIcon />}
+                onClick={handleOpenPinDialog}
+              >
+                Change PIN
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteForeverIcon />}
+                onClick={handleOpenResetDialog}
+              >
+                Reset All Data
+              </Button>
+            </Box>
           </Box>
         </FilterPanel>
 
@@ -799,6 +797,89 @@ export default function BackOffice() {
               </Button>
             </DialogActions>
           </form>
+        </Dialog>
+
+        {/* Reset All Data Dialog */}
+        <Dialog
+          open={showResetDialog}
+          onClose={resetLoading ? undefined : handleCloseResetDialog}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <WarningIcon color="error" />
+              <Typography variant="h6" color="error">
+                Reset All Data
+              </Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body1" sx={{ mb: 2, fontWeight: "bold" }}>
+              ⚠️ This action cannot be undone!
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              This will permanently delete:
+            </Typography>
+            <Box sx={{ pl: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                • All transactions and sales records
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • All items and categories
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • All inventory data
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • All analytics and reports
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ mt: 2, fontStyle: "italic" }}>
+              This action is irreversible. Please type "RESET" to confirm.
+            </Typography>
+
+            <TextField
+              fullWidth
+              label='Type "RESET" to confirm'
+              value={resetConfirmation}
+              onChange={(e) => setResetConfirmation(e.target.value)}
+              sx={{ mt: 2 }}
+              disabled={resetLoading}
+            />
+
+            {resetError && (
+              <Typography color="error" sx={{ mt: 2 }}>
+                {resetError}
+              </Typography>
+            )}
+
+            {resetSuccess && (
+              <Typography color="success.main" sx={{ mt: 2 }}>
+                {resetSuccess}
+              </Typography>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseResetDialog} disabled={resetLoading}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleResetAllData}
+              variant="contained"
+              color="error"
+              disabled={resetLoading || resetConfirmation !== "RESET"}
+              startIcon={
+                resetLoading ? (
+                  <CircularProgress size={20} />
+                ) : (
+                  <DeleteForeverIcon />
+                )
+              }
+            >
+              {resetLoading ? "Resetting..." : "Reset All Data"}
+            </Button>
+          </DialogActions>
         </Dialog>
       </Box>
     </ThemeProvider>
