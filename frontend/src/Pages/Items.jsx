@@ -27,7 +27,7 @@ const Items = memo(function Items() {
       try {
         setLoading(true);
 
-        // Fetch items
+        // Fetch items (now includes variants)
         const itemsResponse = await fetch("http://localhost:5000/api/items");
         if (!itemsResponse.ok) throw new Error("Failed to fetch items");
         const itemsData = await itemsResponse.json();
@@ -69,13 +69,21 @@ const Items = memo(function Items() {
   const handleCategoryChange = useCallback((value) => {
     setSelectedCategory(value);
   }, []);
+
   const handleClick = useCallback(
     (item) => {
-      navigate(`/items/items/update/${item.id}`, { state: { item } });
+      console.log("Item clicked:", item);
+      console.log("Item ID:", item.id);
+      console.log("Navigating to:", `items/update/${item.id}`);
+      navigate(`/items/items/update/${item.id}`); // Add "items/" prefix
     },
     [navigate]
   );
 
+  const handleCreateItem = useCallback(
+    () => navigate("/items/items/create"), // Add "items/" prefix
+    [navigate]
+  );
   // Filtered items based on search + category
   const filteredItems = items.filter((item) => {
     const matchesSearch =
@@ -95,10 +103,6 @@ const Items = memo(function Items() {
   );
 
   const handlePageChange = useCallback((e, value) => setCurrentPage(value), []);
-  const handleCreateItem = useCallback(
-    () => navigate("/items/items/create"),
-    [navigate]
-  );
 
   if (loading) return <Box p={2}>Loading items...</Box>;
   if (error)

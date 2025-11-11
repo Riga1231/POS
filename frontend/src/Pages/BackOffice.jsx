@@ -4,8 +4,6 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import { styled, createTheme, ThemeProvider } from "@mui/material/styles";
 import Header from "../components/Header";
-import { LineChart } from "@mui/x-charts/LineChart";
-import { BarChart } from "@mui/x-charts/BarChart";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
@@ -34,6 +32,13 @@ import { useAuth } from "../context/AuthContext";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import WarningIcon from "@mui/icons-material/Warning";
 import CircularProgress from "@mui/material/CircularProgress";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Chip from "@mui/material/Chip";
 
 // ---------- Theme ----------
 const purpleTheme = createTheme({
@@ -107,6 +112,7 @@ export default function BackOffice() {
     period: "today",
     startDate: "",
     endDate: "",
+    category: "all",
   });
 
   // PIN Change states
@@ -150,6 +156,8 @@ export default function BackOffice() {
         params.append("startDate", currentFilters.startDate);
       if (currentFilters.endDate)
         params.append("endDate", currentFilters.endDate);
+      if (currentFilters.category && currentFilters.category !== "all")
+        params.append("category", currentFilters.category);
 
       const url = `http://localhost:5000/api/backoffice/dashboard?${params}`;
       console.log("🔄 Fetching from:", url);
@@ -379,7 +387,8 @@ export default function BackOffice() {
               justifyContent: "center",
             }}
           >
-            <Typography>Loading dashboard data...</Typography>
+            <CircularProgress />
+            <Typography sx={{ ml: 2 }}>Loading dashboard data...</Typography>
           </Box>
         </Box>
       </ThemeProvider>
@@ -424,9 +433,9 @@ export default function BackOffice() {
         </Box>
       </ThemeProvider>
     );
-  }
+  } 
 
-  const { charts, top_items } = dashboardData;
+  const { variants, available_categories } = dashboardData;
 
   return (
     <ThemeProvider theme={purpleTheme}>
@@ -440,7 +449,7 @@ export default function BackOffice() {
           backgroundColor: "#F8F5FA",
         }}
       >
-        <Header title="Back Office Analytics" showNav={true} />
+        <Header title="Back Office Analytics - Variants" showNav={true} />
 
         {/* Filter Panel */}
         <FilterPanel className="no-print">
@@ -472,6 +481,23 @@ export default function BackOffice() {
                 <MenuItem value="quarter">Last 90 Days</MenuItem>
                 <MenuItem value="year">Last 12 Months</MenuItem>
                 <MenuItem value="all">All Time</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Category Filter */}
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={filters.category}
+                label="Category"
+                onChange={(e) => handleFilterChange("category", e.target.value)}
+              >
+                <MenuItem value="all">All Categories</MenuItem>
+                {available_categories?.map((category) => (
+                  <MenuItem key={category} value={category}>
+                    {category}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 
@@ -521,7 +547,7 @@ export default function BackOffice() {
           {/* Stats Cards */}
           <Grid container spacing={2} sx={{ mb: 3 }} className="no-print">
             {getStats().map((stat, idx) => (
-              <Grid item xs={12} sm={6} md={2.4} key={idx}>
+              <Grid item xs={12} sm={6} md={2.4} key={`stat-${idx}`}>
                 <StatCard>
                   <CardContent>
                     <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
@@ -558,155 +584,262 @@ export default function BackOffice() {
             ))}
           </Grid>
 
-          {/* Charts Grid */}
-          <Grid container spacing={3} className="no-print">
-            {/* Revenue Trend Chart */}
-            <Grid item xs={12} lg={8}>
-              <ChartContainer>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Revenue & Profit Trend
-                </Typography>
-                {charts.daily_breakdown.length > 0 ? (
-                  <LineChart
-                    xAxis={[
-                      {
-                        data: charts.daily_breakdown.map((item) => item.date),
-                        scaleType: "point",
-                        label: "Date",
-                      },
-                    ]}
-                    series={[
-                      {
-                        data: charts.daily_breakdown.map(
-                          (item) => item.revenue
-                        ),
-                        label: "Revenue",
-                        color: "#8E44AD",
-                        curve: "monotoneX",
-                        showMark: true,
-                      },
-                      {
-                        data: charts.daily_breakdown.map((item) => item.profit),
-                        label: "Profit",
-                        color: "#5D336E",
-                        curve: "monotoneX",
-                        showMark: true,
-                      },
-                    ]}
-                    height={400}
-                    grid={{ vertical: true, horizontal: true }}
-                    margin={{ left: 60, right: 30, top: 30, bottom: 70 }}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      height: 400,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Typography color="text.secondary">
-                      No data available for the selected period
-                    </Typography>
-                  </Box>
-                )}
-              </ChartContainer>
-            </Grid>
+          {/* VARIANTS TABLE */}
+          <ChartContainer>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 3,
+              }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Variant Performance Analysis
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {variants?.length || 0} variants found
+              </Typography>
+            </Box>
 
-            {/* Top Selling Items */}
-            <Grid item xs={12} lg={6}>
-              <ChartContainer>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Top Selling Items
+            {variants && variants.length > 0 ? (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>
+                        <strong>Item Name</strong>
+                      </TableCell>
+                      <TableCell>
+                        <strong>Variant</strong>
+                      </TableCell>
+                      <TableCell>
+                        <strong>Category</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Quantity Sold</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Avg Unit Price</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Avg Unit Cost</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Total Revenue</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Total Cost</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Total Profit</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Profit Margin</strong>
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {variants.map((variant, index) => (
+                      <TableRow
+                        key={`variant-${variant.item_name}-${variant.variant_name}-${index}`}
+                      >
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="medium">
+                            {variant.item_name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={variant.variant_name}
+                            size="small"
+                            color="primary"
+                            variant="filled"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={variant.category}
+                            size="small"
+                            color="secondary"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" fontWeight="medium">
+                            {variant.quantity}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2">
+                            {formatCurrency(variant.avg_unit_price)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2">
+                            {formatCurrency(variant.avg_unit_cost)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography
+                            variant="body2"
+                            fontWeight="medium"
+                            color="primary"
+                          >
+                            {formatCurrency(variant.revenue)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2">
+                            {formatCurrency(variant.cost)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography
+                            variant="body2"
+                            fontWeight="bold"
+                            color={
+                              variant.profit >= 0
+                                ? "success.main"
+                                : "error.main"
+                            }
+                          >
+                            {formatCurrency(variant.profit)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography
+                            variant="body2"
+                            fontWeight="medium"
+                            color={
+                              variant.profit_margin >= 0
+                                ? "success.main"
+                                : "error.main"
+                            }
+                          >
+                            {typeof variant.profit_margin === "number"
+                              ? variant.profit_margin.toFixed(1)
+                              : "0.0"}
+                            %
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Box sx={{ textAlign: "center", py: 8 }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No Variant Data Available
                 </Typography>
-                {top_items.length > 0 ? (
-                  <BarChart
-                    xAxis={[
-                      {
-                        data: top_items.map((item) => item.name),
-                        scaleType: "band",
-                        label: "Items",
-                      },
-                    ]}
-                    series={[
-                      {
-                        data: top_items.map((item) => item.revenue),
-                        label: "Revenue",
-                        color: "#8E44AD",
-                      },
-                      {
-                        data: top_items.map((item) => item.profit),
-                        label: "Profit",
-                        color: "#5D336E",
-                      },
-                    ]}
-                    height={400}
-                    grid={{ vertical: true, horizontal: true }}
-                    margin={{ left: 60, right: 30, top: 30, bottom: 100 }}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      height: 400,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Typography color="text.secondary">
-                      No items sold in selected period
-                    </Typography>
-                  </Box>
-                )}
-              </ChartContainer>
-            </Grid>
+                <Typography variant="body2" color="text.secondary">
+                  No variant sales data found for the selected period and
+                  filters.
+                </Typography>
+              </Box>
+            )}
+          </ChartContainer>
 
-            {/* Hourly Performance */}
-            <Grid item xs={12} lg={6}>
-              <ChartContainer>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Hourly Performance
-                </Typography>
-                {charts.hourly_breakdown.length > 0 ? (
-                  <BarChart
-                    xAxis={[
-                      {
-                        data: charts.hourly_breakdown.map((item) => item.hour),
-                        scaleType: "band",
-                        label: "Hour of Day",
-                      },
-                    ]}
-                    series={[
-                      {
-                        data: charts.hourly_breakdown.map(
-                          (item) => item.revenue
-                        ),
-                        label: "Revenue",
-                        color: "#8E44AD",
-                      },
-                    ]}
-                    height={400}
-                    grid={{ vertical: true, horizontal: true }}
-                    margin={{ left: 60, right: 30, top: 30, bottom: 70 }}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      height: 400,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Typography color="text.secondary">
-                      No hourly data available
+          {/* Summary Stats for Variants */}
+          {variants && variants.length > 0 && (
+            <Grid container spacing={2} sx={{ mt: 2 }}>
+              <Grid item xs={12} md={3}>
+                <StatCard>
+                  <CardContent>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      Total Variants Sold
                     </Typography>
-                  </Box>
-                )}
-              </ChartContainer>
+                    <Typography variant="h4" color="primary" fontWeight="bold">
+                      {variants.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Unique variants with sales
+                    </Typography>
+                  </CardContent>
+                </StatCard>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <StatCard>
+                  <CardContent>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      Total Quantity Sold
+                    </Typography>
+                    <Typography variant="h4" color="primary" fontWeight="bold">
+                      {variants.reduce(
+                        (sum, variant) => sum + (variant.quantity || 0),
+                        0
+                      )}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Across all variants
+                    </Typography>
+                  </CardContent>
+                </StatCard>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <StatCard>
+                  <CardContent>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      Avg Profit Margin
+                    </Typography>
+                    <Typography
+                      variant="h4"
+                      color="success.main"
+                      fontWeight="bold"
+                    >
+                      {(
+                        variants.reduce(
+                          (sum, variant) => sum + (variant.profit_margin || 0),
+                          0
+                        ) / variants.length
+                      ).toFixed(1)}
+                      %
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Average across variants
+                    </Typography>
+                  </CardContent>
+                </StatCard>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <StatCard>
+                  <CardContent>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      Top Performing
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      color="success.main"
+                      fontWeight="bold"
+                      noWrap
+                    >
+                      {variants[0]?.item_name} - {variants[0]?.variant_name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Highest profit variant
+                    </Typography>
+                  </CardContent>
+                </StatCard>
+              </Grid>
             </Grid>
-          </Grid>
+          )}
 
           {/* Action Buttons */}
           <Box sx={{ textAlign: "center", mt: 4, mb: 2 }} className="no-print">
@@ -716,7 +849,7 @@ export default function BackOffice() {
               size="large"
               startIcon={<PrintIcon />}
               onClick={handlePrint}
-              sx={{ px: 4, py: 1.5, mr: 2 }}
+              sx={{ px: 4, py: 1.5 }}
             >
               Generate Report
             </Button>
@@ -827,6 +960,9 @@ export default function BackOffice() {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 • All items and categories
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • All variant data
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 • All inventory data

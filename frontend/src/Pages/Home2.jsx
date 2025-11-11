@@ -35,28 +35,28 @@ export default function Home2({ goTo }) {
   const [alertMessage, setAlertMessage] = useState("");
   const [alertSeverity, setAlertSeverity] = useState("error");
 
-  // In Home2.jsx, update the debug log to check for category:
   const handleCreateTransaction = async () => {
     try {
-      // DEBUG: Check if cart items have cost AND category
-      console.log(
-        "🛒 CART ITEMS DEBUG:",
-        cart.map((item) => ({
-          id: item.id,
-          name: item.name,
-          categoryName: item.categoryName, // Check if this exists
-          category: item.category, // Or this
-          cost: item.cost,
-          price: item.price,
-          qty: item.qty,
-          hasCost: item.cost !== undefined,
-          hasCategory: !!(item.categoryName || item.category),
-        }))
+      // Calculate actual total from cart items
+      const actualTotal = cart.reduce(
+        (sum, item) => sum + item.price * item.qty,
+        0
       );
 
       const transactionData = {
-        items: cart,
-        total_amount: totalNum,
+        items: cart.map((item) => ({
+          item_id: item.item_id,
+          variant_id: item.variant_id,
+          name: item.name,
+          variant_name: item.variant_name,
+          categoryName: item.categoryName,
+          qty: item.qty,
+          price: parseFloat(item.price.toFixed(2)), // Fix: Ensure 2 decimal places
+          cost: item.cost || 0,
+          has_discount: item.has_discount || false,
+          original_price: item.original_price || item.price,
+        })),
+        total_amount: parseFloat(actualTotal.toFixed(2)), // Fix: Ensure 2 decimal places
         payment_method: paymentMethod,
       };
 
@@ -135,150 +135,172 @@ export default function Home2({ goTo }) {
     clearCart();
     goTo(0);
   };
-
   const handlePrint = () => {
     const printWindow = window.open("", "_blank");
+
+    // Calculate the actual total from cart items
+    const actualTotal = cart.reduce(
+      (sum, item) => sum + item.price * item.qty,
+      0
+    );
+
     printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Receipt</title>
-          <style>
-            body { 
-              font-family: 'Courier New', monospace; 
-              margin: 0; 
-              padding: 20px;
-              font-size: 14px;
-            }
-            .receipt { 
-              width: 280px; 
-              margin: 0 auto;
-            }
-            .header { 
-              text-align: center; 
-              margin-bottom: 15px;
-              border-bottom: 1px dashed #000;
-              padding-bottom: 10px;
-            }
-            .company-name { 
-              font-weight: bold; 
-              font-size: 18px;
-              margin-bottom: 5px;
-            }
-            .address { 
-              font-size: 12px; 
-              margin-bottom: 5px;
-            }
-            .date { 
-              font-size: 12px; 
-              margin-bottom: 10px;
-            }
-            .items { 
-              margin: 15px 0; 
-            }
-            .item-row { 
-              display: flex; 
-              justify-content: space-between; 
-              margin-bottom: 5px;
-            }
-            .item-name { 
-              flex: 2; 
-            }
-            .item-qty { 
-              flex: 1; 
-              text-align: center;
-            }
-            .item-price { 
-              flex: 1; 
-              text-align: right;
-            }
-            .divider { 
-              border-top: 1px dashed #000; 
-              margin: 10px 0;
-            }
-            .total-row { 
-              display: flex; 
-              justify-content: space-between; 
-              font-weight: bold;
-              margin: 5px 0;
-            }
-            .payment-info { 
-              margin-top: 15px;
-              border-top: 1px dashed #000;
-              padding-top: 10px;
-            }
-            .thank-you { 
-              text-align: center; 
-              margin-top: 20px;
-              font-style: italic;
-            }
-            .insufficient { 
-              color: red; 
-              font-weight: bold;
-              text-align: center;
-              margin: 10px 0;
-            }
-            @media print {
-              body { margin: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="receipt">
-            <div class="header">
-              <div class="company-name">ARK ZIAM</div>
-              <div class="address">Printing Services</div>
-              <div class="date">${new Date().toLocaleString()}</div>
-            </div>
-            
-            <div class="items">
-              ${cart
-                .map(
-                  (item) => `
-                <div class="item-row">
-                  <div class="item-name">${item.name}</div>
-                  <div class="item-qty">${item.qty}</div>
-                  <div class="item-price">₱${(item.price * item.qty).toFixed(
-                    2
-                  )}</div>
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Receipt</title>
+        <style>
+          body { 
+            font-family: 'Courier New', monospace; 
+            margin: 0; 
+            padding: 20px;
+            font-size: 14px;
+          }
+          .receipt { 
+            width: 280px; 
+            margin: 0 auto;
+          }
+          .header { 
+            text-align: center; 
+            margin-bottom: 15px;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 10px;
+          }
+          .company-name { 
+            font-weight: bold; 
+            font-size: 18px;
+            margin-bottom: 5px;
+          }
+          .address { 
+            font-size: 12px; 
+            margin-bottom: 5px;
+          }
+          .date { 
+            font-size: 12px; 
+            margin-bottom: 10px;
+          }
+          .items { 
+            margin: 15px 0; 
+          }
+          .item-row { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 5px;
+          }
+          .item-name { 
+            flex: 2; 
+          }
+          .item-qty { 
+            flex: 1; 
+            text-align: center;
+          }
+          .item-price { 
+            flex: 1; 
+            text-align: right;
+          }
+          .divider { 
+            border-top: 1px dashed #000; 
+            margin: 10px 0;
+          }
+          .total-row { 
+            display: flex; 
+            justify-content: space-between; 
+            font-weight: bold;
+            margin: 5px 0;
+          }
+          .payment-info { 
+            margin-top: 15px;
+            border-top: 1px dashed #000;
+            padding-top: 10px;
+          }
+          .thank-you { 
+            text-align: center; 
+            margin-top: 20px;
+            font-style: italic;
+          }
+          .discount { 
+            color: #28a745; 
+            font-size: 12px;
+          }
+          @media print {
+            body { margin: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="header">
+            <div class="company-name">ARK ZIAM</div>
+            <div class="address">Printing Services</div>
+            <div class="date">${new Date().toLocaleString()}</div>
+          </div>
+          
+          <div class="items">
+            ${cart
+              .map(
+                (item) => `
+              <div class="item-row">
+                <div class="item-name">
+                  ${item.name}${
+                  item.variant_name ? ` (${item.variant_name})` : ""
+                }
+                </div>
+                <div class="item-qty">${item.qty}</div>
+                <div class="item-price">₱${(item.price * item.qty).toFixed(
+                  2
+                )}</div>
+              </div>
+              ${
+                item.has_discount
+                  ? `
+                <div class="item-row discount">
+                  <div class="item-name">- Discount applied</div>
+                  <div class="item-qty"></div>
+                  <div class="item-price">-₱${(
+                    item.original_price * item.qty -
+                    item.price * item.qty
+                  ).toFixed(2)}</div>
                 </div>
               `
-                )
-                .join("")}
-            </div>
-            
-            <div class="divider"></div>
-            
+                  : ""
+              }
+            `
+              )
+              .join("")}
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="total-row">
+            <div>Subtotal:</div>
+            <div>₱${actualTotal.toFixed(2)}</div>
+          </div>
+          <div class="total-row">
+            <div>Total:</div>
+            <div>₱${totalNum.toFixed(2)}</div>
+          </div>
+          
+          <div class="payment-info">
             <div class="total-row">
-              <div>Subtotal:</div>
-              <div>₱${totalDefault.toFixed(2)}</div>
+              <div>Cash:</div>
+              <div>₱${paid.toFixed(2)}</div>
             </div>
             <div class="total-row">
-              <div>Total:</div>
-              <div>₱${totalNum.toFixed(2)}</div>
+              <div>Change:</div>
+              <div>₱${change.toFixed(2)}</div>
             </div>
-            
-            <div class="payment-info">
-              <div class="total-row">
-                <div>Cash:</div>
-                <div>₱${paid.toFixed(2)}</div>
-              </div>
-              <div class="total-row">
-                <div>Change:</div>
-                <div>₱${change.toFixed(2)}</div>
-              </div>
-              <div style="margin-top: 5px; font-size: 12px;">
-                Payment Method: ${paymentMethod.toUpperCase()}
-              </div>
-            </div>
-            
-            <div class="thank-you">
-              Thank you for your purchase!
+            <div style="margin-top: 5px; font-size: 12px;">
+              Payment Method: ${paymentMethod.toUpperCase()}
             </div>
           </div>
-        </body>
-      </html>
-    `);
+          
+          <div class="thank-you">
+            Thank you for your purchase!
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
@@ -347,7 +369,7 @@ export default function Home2({ goTo }) {
                 value={totalAmount}
                 onChange={(e) => setTotalAmount(e.target.value)}
                 variant="standard"
-                color="secondary"
+                color="success"
                 placeholder="Total amount due"
                 sx={{
                   width: 450,
@@ -360,7 +382,7 @@ export default function Home2({ goTo }) {
               />
               <Typography
                 variant="subtitle1"
-                sx={{ color: theme.palette.secondary.main }}
+                sx={{ color: theme.palette.success.main }}
               >
                 Total amount due
               </Typography>
@@ -369,7 +391,7 @@ export default function Home2({ goTo }) {
               <TextField
                 type="number"
                 value={cashReceived}
-                color="secondary"
+                color="success"
                 onChange={(e) => setCashReceived(e.target.value)}
                 label="Cash received"
                 variant="standard"
@@ -392,9 +414,9 @@ export default function Home2({ goTo }) {
                     key={amt}
                     variant="contained"
                     sx={{
-                      bgcolor: theme.palette.secondary.main,
+                      bgcolor: theme.palette.success.main,
                       color: "white",
-                      "&:hover": { bgcolor: theme.palette.secondary.dark },
+                      "&:hover": { bgcolor: theme.palette.success.dark },
                       px: 4,
                       py: 2,
                     }}
@@ -413,16 +435,12 @@ export default function Home2({ goTo }) {
               >
                 <FormControlLabel
                   value="cash"
-                  control={
-                    <Radio sx={{ color: theme.palette.secondary.main }} />
-                  }
+                  control={<Radio sx={{ color: theme.palette.success.main }} />}
                   label="Cash"
                 />
                 <FormControlLabel
                   value="gcash"
-                  control={
-                    <Radio sx={{ color: theme.palette.secondary.main }} />
-                  }
+                  control={<Radio sx={{ color: theme.palette.success.main }} />}
                   label="GCash"
                 />
               </RadioGroup>
@@ -440,13 +458,13 @@ export default function Home2({ goTo }) {
                 sx={{
                   bgcolor:
                     isPaymentSufficient && !isCartEmpty
-                      ? theme.palette.secondary.main
+                      ? theme.palette.success.main
                       : "#ccc",
                   color: "white",
                   "&:hover": {
                     bgcolor:
                       isPaymentSufficient && !isCartEmpty
-                        ? theme.palette.secondary.dark
+                        ? theme.palette.success.dark
                         : "#ccc",
                   },
                   width: 250,
@@ -473,7 +491,7 @@ export default function Home2({ goTo }) {
               {/* Change */}
               <Typography
                 variant="h3"
-                sx={{ fontWeight: "bold", color: theme.palette.secondary.main }}
+                sx={{ fontWeight: "bold", color: theme.palette.success.main }}
               >
                 Change: ₱{change.toFixed(2)}
               </Typography>
@@ -484,7 +502,7 @@ export default function Home2({ goTo }) {
                 <Button
                   variant="outlined"
                   startIcon={<PrintIcon />}
-                  color="secondary"
+                  color="success"
                   sx={{
                     width: 220,
                     height: 70,
@@ -500,9 +518,9 @@ export default function Home2({ goTo }) {
                   variant="contained"
                   startIcon={<AddShoppingCartIcon />}
                   sx={{
-                    bgcolor: theme.palette.secondary.main,
+                    bgcolor: theme.palette.success.main,
                     color: "white",
-                    "&:hover": { bgcolor: theme.palette.secondary.dark },
+                    "&:hover": { bgcolor: theme.palette.success.dark },
                     width: 220,
                     height: 70,
                     fontSize: 20,

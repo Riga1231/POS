@@ -1,4 +1,3 @@
-// transaction.js
 import express from "express";
 
 const router = express.Router();
@@ -7,7 +6,7 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   try {
     const db = req.db;
-    const { items, total_amount, payment_method = "cash" } = req.body; // Default to 'cash'
+    const { items, total_amount, payment_method = "cash" } = req.body;
 
     // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -20,7 +19,7 @@ router.post("/", async (req, res) => {
     }
 
     // Validate payment method
-    const validPaymentMethods = ["cash", "gcash"]; // Add more as needed
+    const validPaymentMethods = ["cash", "gcash"];
     if (!validPaymentMethods.includes(payment_method)) {
       return res.status(400).json({
         error:
@@ -29,40 +28,48 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Calculate total cost from items
+    // Calculate total cost from items with proper decimal handling
     const total_cost = items.reduce((sum, item) => {
-      const itemCost = item.cost || 0;
-      return sum + itemCost * item.qty;
+      const itemCost = parseFloat(item.cost) || 0;
+      const itemQty = parseInt(item.qty) || 1;
+      return sum + itemCost * itemQty;
     }, 0);
 
     // Start transaction
     await db.run("BEGIN TRANSACTION");
 
     try {
-      // 1. Insert main transaction with total_cost AND payment_method
+      // 1. Insert main transaction
       const transactionResult = await db.run(
         `INSERT INTO transactions (total_amount, total_cost, payment_method) VALUES (?, ?, ?)`,
-        [total_amount, total_cost, payment_method]
+        [parseFloat(total_amount), parseFloat(total_cost), payment_method]
       );
       const transactionId = transactionResult.lastID;
 
-      // 2. Insert transaction items with cost data, item_name, AND category_name
+      // 2. Insert transaction items with variant support
       for (const item of items) {
-        const unit_cost = item.cost || 0;
-        const total_item_cost = unit_cost * item.qty;
+        const unit_cost = parseFloat(item.cost) || 0;
+        const unit_price = parseFloat(item.price) || 0;
+        const item_qty = parseInt(item.qty) || 1;
+        const total_item_cost = unit_cost * item_qty;
+        const total_item_price = unit_price * item_qty;
 
         await db.run(
-          `INSERT INTO transaction_items (transaction_id, item_id, item_name, category_name, qty, unit_price, unit_cost, total_price, total_cost) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO transaction_items 
+          (transaction_id, item_id, variant_id, item_name, category_name, variant_name, qty, 
+           unit_price, unit_cost, total_price, total_cost) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             transactionId,
-            item.id,
-            item.name, // Store item name
-            item.categoryName || item.category || "Uncategorized", // Store category name
-            item.qty,
-            item.price,
+            item.item_id || item.id,
+            item.variant_id || null,
+            item.name,
+            item.categoryName || "Uncategorized",
+            item.variant_name || "",
+            item_qty,
+            unit_price,
             unit_cost,
-            item.qty * item.price,
+            total_item_price,
             total_item_cost,
           ]
         );
@@ -73,9 +80,9 @@ router.post("/", async (req, res) => {
       res.status(201).json({
         message: "Transaction created successfully",
         transaction_id: transactionId,
-        total_amount: total_amount,
-        total_cost: total_cost,
-        total_profit: total_amount - total_cost,
+        total_amount: parseFloat(total_amount),
+        total_cost: parseFloat(total_cost),
+        total_profit: parseFloat(total_amount) - parseFloat(total_cost),
         items_count: items.length,
         payment_method: payment_method,
       });
@@ -91,7 +98,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// 🟢 GET ALL TRANSACTIONS (updated to include payment_method)
+// 🟢 GET ALL TRANSACTIONS
 router.get("/", async (req, res) => {
   try {
     const db = req.db;
@@ -114,7 +121,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 🟢 GET SINGLE TRANSACTION WITH ITEMS (no changes needed here)
+// 🟢 GET SINGLE TRANSACTION WITH ITEMS
 router.get("/:id", async (req, res) => {
   try {
     const db = req.db;
@@ -130,15 +137,16 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Transaction not found" });
     }
 
-    // Get transaction items - now using the stored item_name and category_name
+    // Get transaction items with variant info
     const transactionItems = await db.all(
       `
       SELECT 
         ti.*,
-        ti.item_name,           -- Use the stored item_name
-        ti.category_name,       -- Use the stored category_name
-        i.name as current_item_name,    -- Optional: current name if item exists
-        c.name as current_category_name, -- Optional: current category if exists
+        ti.item_name,
+        ti.category_name,
+        ti.variant_name,
+        i.name as current_item_name,
+        c.name as current_category_name,
         i.type as item_type,
         (ti.total_price - ti.total_cost) as item_profit
       FROM transaction_items ti

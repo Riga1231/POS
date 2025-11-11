@@ -2,6 +2,7 @@ import express from "express";
 
 const router = express.Router();
 
+// 🟢 RESET ALL DATA (Updated for variants)
 router.delete("/reset-all", async (req, res) => {
   try {
     const db = req.db;
@@ -10,9 +11,10 @@ router.delete("/reset-all", async (req, res) => {
     await db.run("BEGIN TRANSACTION");
 
     try {
-      // Delete data from all tables in correct order
+      // Delete data from all tables in correct order (including variant tables)
       await db.run("DELETE FROM transaction_items");
       await db.run("DELETE FROM transactions");
+      await db.run("DELETE FROM item_variants"); // Clear variants table
       await db.run("DELETE FROM item");
       await db.run("DELETE FROM category");
 
@@ -29,6 +31,7 @@ router.delete("/reset-all", async (req, res) => {
         tables_cleared: [
           "transaction_items",
           "transactions",
+          "item_variants",
           "item",
           "category",
           "admin_pin",
@@ -202,7 +205,65 @@ router.post("/initialize-pin", async (req, res) => {
   }
 });
 
-// 🟢 GET BACKOFFICE DASHBOARD DATA WITH FILTERS
+// Helper function to get dates in database local time
+function getDatabaseLocalDates(period) {
+  // Use SQLite's localtime functions to match the database timezone
+  switch (period) {
+    case "today":
+      return {
+        where: "DATE(transaction_date) = DATE('now', 'localtime')",
+        params: [],
+      };
+
+    case "yesterday":
+      return {
+        where: "DATE(transaction_date) = DATE('now', 'localtime', '-1 day')",
+        params: [],
+      };
+
+    case "week":
+      return {
+        where:
+          "DATE(transaction_date) BETWEEN DATE('now', 'localtime', '-6 days') AND DATE('now', 'localtime')",
+        params: [],
+      };
+
+    case "month":
+      return {
+        where:
+          "DATE(transaction_date) BETWEEN DATE('now', 'localtime', '-29 days') AND DATE('now', 'localtime')",
+        params: [],
+      };
+
+    case "quarter":
+      return {
+        where:
+          "DATE(transaction_date) BETWEEN DATE('now', 'localtime', '-89 days') AND DATE('now', 'localtime')",
+        params: [],
+      };
+
+    case "year":
+      return {
+        where:
+          "DATE(transaction_date) BETWEEN DATE('now', 'localtime', '-364 days') AND DATE('now', 'localtime')",
+        params: [],
+      };
+
+    case "all":
+      return {
+        where: "1=1",
+        params: [],
+      };
+
+    default:
+      return {
+        where: "DATE(transaction_date) = DATE('now', 'localtime')",
+        params: [],
+      };
+  }
+}
+
+// 🟢 GET BACKOFFICE DASHBOARD DATA WITH FIXED TABLE ALIASES
 router.get("/dashboard", async (req, res) => {
   try {
     const db = req.db;
@@ -219,66 +280,49 @@ router.get("/dashboard", async (req, res) => {
       return res.status(500).json({ error: "Database not available" });
     }
 
-    // Build WHERE clause based on filters
+    // Debug: Check database time vs system time
+    const dbTime = await db.get(
+      "SELECT datetime('now', 'localtime') as db_local_now, date('now', 'localtime') as db_local_today"
+    );
+    console.log("🐛 Database local time:", dbTime);
+
+    // Build WHERE clause based on filters - USE DATABASE LOCAL TIME
     let whereClause = "1=1";
     const params = [];
 
-    // Date range filtering using SQLite date functions
+    // Date range filtering - USE DATABASE LOCAL TIME
     if (startDate && endDate) {
-      whereClause += " AND DATE(transaction_date) BETWEEN ? AND ?";
+      whereClause += " AND DATE(transactions.transaction_date) BETWEEN ? AND ?";
       params.push(startDate, endDate);
       console.log("📅 Using custom date range:", { startDate, endDate });
     } else {
-      // Apply period filter using SQLite date functions
-      switch (period) {
-        case "today":
-          whereClause += " AND DATE(transaction_date) = DATE('now')";
-          console.log("📅 Filter: TODAY");
-          break;
-        case "yesterday":
-          whereClause += " AND DATE(transaction_date) = DATE('now', '-1 day')";
-          console.log("📅 Filter: YESTERDAY");
-          break;
-        case "week":
-          whereClause +=
-            " AND DATE(transaction_date) BETWEEN DATE('now', '-6 days') AND DATE('now')";
-          console.log("📅 Filter: LAST 7 DAYS");
-          break;
-        case "month":
-          whereClause +=
-            " AND DATE(transaction_date) BETWEEN DATE('now', '-29 days') AND DATE('now')";
-          console.log("📅 Filter: LAST 30 DAYS");
-          break;
-        case "quarter":
-          whereClause +=
-            " AND DATE(transaction_date) BETWEEN DATE('now', '-89 days') AND DATE('now')";
-          console.log("📅 Filter: LAST 90 DAYS");
-          break;
-        case "year":
-          whereClause +=
-            " AND DATE(transaction_date) BETWEEN DATE('now', '-364 days') AND DATE('now')";
-          console.log("📅 Filter: LAST 12 MONTHS");
-          break;
-        case "all":
-          console.log("📅 Filter: ALL TIME (no date filter)");
-          break;
-        default:
-          whereClause += " AND DATE(transaction_date) = DATE('now')";
-          console.log("📅 Filter: DEFAULT (today)");
-      }
+      // Use database local time for period filtering
+      const dateFilter = getDatabaseLocalDates(period);
+      whereClause += " AND " + dateFilter.where;
+      params.push(...dateFilter.params);
+      console.log("📅 Using period filter:", period, dateFilter);
     }
 
-    // Category filtering
+    // Category filtering - using category_name from transaction_items
     if (category && category !== "all") {
-      whereClause +=
-        " AND i.category_id IN (SELECT id FROM category WHERE name = ?)";
+      whereClause += " AND transaction_items.category_name = ?";
       params.push(category);
     }
 
     console.log("🔍 Final WHERE clause:", whereClause);
     console.log("🔍 Final params:", params);
 
-    // 1. OVERALL STATISTICS
+    // Debug: Check what transactions match the current filter
+    const debugTransactions = await db.all(
+      `SELECT id, transaction_date, DATE(transaction_date) as date_only, total_amount FROM transactions WHERE ${whereClause}`,
+      params
+    );
+    console.log("🐛 Filtered transactions debug:", {
+      count: debugTransactions.length,
+      transactions: debugTransactions,
+    });
+
+    // 1. OVERALL STATISTICS (Variant-aware)
     const stats = await db.all(
       `
       SELECT 
@@ -288,7 +332,7 @@ router.get("/dashboard", async (req, res) => {
         COALESCE(SUM(total_amount - total_cost), 0) as total_profit,
         COALESCE(AVG(total_amount), 0) as avg_transaction_value,
         COUNT(DISTINCT DATE(transaction_date)) as business_days
-      FROM transactions t
+      FROM transactions
       WHERE ${whereClause}
     `,
       params
@@ -296,13 +340,8 @@ router.get("/dashboard", async (req, res) => {
 
     console.log("📈 Stats query result:", stats[0]);
 
-    // 2. COMPARISON PERIOD (for trends)
-    const comparisonStats = await getComparisonStats(
-      db,
-      period,
-      whereClause,
-      params
-    );
+    // 2. COMPARISON PERIOD (for trends) - Also use database local time
+    const comparisonStats = await getComparisonStats(db, period);
 
     console.log("📊 Comparison stats:", comparisonStats[0]);
 
@@ -315,7 +354,7 @@ router.get("/dashboard", async (req, res) => {
         SUM(total_amount) as daily_revenue,
         SUM(total_cost) as daily_cost,
         SUM(total_amount - total_cost) as daily_profit
-      FROM transactions t
+      FROM transactions
       WHERE ${whereClause}
       GROUP BY DATE(transaction_date)
       ORDER BY date ASC
@@ -332,7 +371,7 @@ router.get("/dashboard", async (req, res) => {
         strftime('%H', transaction_date) as hour,
         COUNT(*) as transaction_count,
         SUM(total_amount) as hourly_revenue
-      FROM transactions t
+      FROM transactions
       WHERE ${whereClause}
       GROUP BY strftime('%H', transaction_date)
       ORDER BY hour ASC
@@ -342,56 +381,52 @@ router.get("/dashboard", async (req, res) => {
 
     console.log("⏰ Hourly breakdown:", hourlyBreakdown);
 
-    // 5. TOP ITEMS
+    // 5. TOP ITEMS WITH VARIANTS (UPDATED)
     const topItems = await db.all(
       `
       SELECT 
-        i.name as item_name,
-        i.category_id,
-        c.name as category_name,
-        SUM(ti.qty) as total_quantity,
-        SUM(ti.total_price) as total_revenue,
-        SUM(ti.total_cost) as total_cost,
-        SUM(ti.total_price - ti.total_cost) as total_profit,
+        transaction_items.item_name,
+        transaction_items.variant_name,
+        transaction_items.category_name,
+        SUM(transaction_items.qty) as total_quantity,
+        SUM(transaction_items.total_price) as total_revenue,
+        SUM(transaction_items.total_cost) as total_cost,
+        SUM(transaction_items.total_price - transaction_items.total_cost) as total_profit,
         CASE 
-          WHEN SUM(ti.total_price) > 0 THEN 
-            ROUND((SUM(ti.total_price - ti.total_cost) * 100.0 / SUM(ti.total_price)), 2)
+          WHEN SUM(transaction_items.total_price) > 0 THEN 
+            ROUND((SUM(transaction_items.total_price - transaction_items.total_cost) * 100.0 / SUM(transaction_items.total_price)), 2)
           ELSE 0 
         END as profit_margin
-      FROM transaction_items ti
-      JOIN item i ON ti.item_id = i.id
-      LEFT JOIN category c ON i.category_id = c.id
-      JOIN transactions t ON ti.transaction_id = t.id
+      FROM transaction_items
+      JOIN transactions ON transaction_items.transaction_id = transactions.id
       WHERE ${whereClause}
-      GROUP BY ti.item_id
+      GROUP BY transaction_items.item_id, transaction_items.variant_id
       ORDER BY total_revenue DESC
       LIMIT 10
     `,
       params
     );
 
-    console.log("🏆 Top items:", topItems);
+    console.log("🏆 Top items with variants:", topItems);
 
-    // 6. CATEGORY PERFORMANCE
+    // 6. CATEGORY PERFORMANCE (UPDATED)
     const categoryPerformance = await db.all(
       `
       SELECT 
-        c.name as category_name,
-        COUNT(DISTINCT t.id) as transaction_count,
-        SUM(ti.total_price) as total_revenue,
-        SUM(ti.total_cost) as total_cost,
-        SUM(ti.total_price - ti.total_cost) as total_profit,
+        transaction_items.category_name,
+        COUNT(DISTINCT transactions.id) as transaction_count,
+        SUM(transaction_items.total_price) as total_revenue,
+        SUM(transaction_items.total_cost) as total_cost,
+        SUM(transaction_items.total_price - transaction_items.total_cost) as total_profit,
         CASE 
-          WHEN SUM(ti.total_price) > 0 THEN 
-            ROUND((SUM(ti.total_price - ti.total_cost) * 100.0 / SUM(ti.total_price)), 2)
+          WHEN SUM(transaction_items.total_price) > 0 THEN 
+            ROUND((SUM(transaction_items.total_price - transaction_items.total_cost) * 100.0 / SUM(transaction_items.total_price)), 2)
           ELSE 0 
         END as profit_margin
-      FROM transaction_items ti
-      JOIN item i ON ti.item_id = i.id
-      JOIN transactions t ON ti.transaction_id = t.id
-      LEFT JOIN category c ON i.category_id = c.id
+      FROM transaction_items
+      JOIN transactions ON transaction_items.transaction_id = transactions.id
       WHERE ${whereClause}
-      GROUP BY c.name
+      GROUP BY transaction_items.category_name
       ORDER BY total_revenue DESC
     `,
       params
@@ -405,6 +440,64 @@ router.get("/dashboard", async (req, res) => {
       FROM category 
       ORDER BY name
     `);
+
+    // 8. VARIANT PERFORMANCE ANALYSIS (FIXED - INCLUSIVE)
+    const variantPerformance = await db.all(
+      `
+      SELECT 
+        transaction_items.item_name,
+        transaction_items.variant_name,
+        transaction_items.category_name,
+        SUM(transaction_items.qty) as total_quantity,
+        SUM(transaction_items.total_price) as total_revenue,
+        SUM(transaction_items.total_cost) as total_cost,
+        SUM(transaction_items.total_price - transaction_items.total_cost) as total_profit,
+        CASE 
+          WHEN SUM(transaction_items.total_price) > 0 THEN 
+            ROUND((SUM(transaction_items.total_price - transaction_items.total_cost) * 100.0 / SUM(transaction_items.total_price)), 2)
+          ELSE 0 
+        END as profit_margin,
+        AVG(transaction_items.unit_price) as avg_unit_price,
+        AVG(transaction_items.unit_cost) as avg_unit_cost
+      FROM transaction_items
+      JOIN transactions ON transaction_items.transaction_id = transactions.id
+      WHERE ${whereClause}
+      GROUP BY transaction_items.item_id, transaction_items.variant_id
+      ORDER BY total_profit DESC
+      LIMIT 15
+    `,
+      params
+    );
+
+    console.log("🔬 Variant performance:", variantPerformance);
+
+    // 9. ITEM PERFORMANCE (Without variants - aggregated)
+    const itemPerformance = await db.all(
+      `
+      SELECT 
+        transaction_items.item_name,
+        transaction_items.category_name,
+        COUNT(DISTINCT transaction_items.variant_id) as variant_count,
+        SUM(transaction_items.qty) as total_quantity,
+        SUM(transaction_items.total_price) as total_revenue,
+        SUM(transaction_items.total_cost) as total_cost,
+        SUM(transaction_items.total_price - transaction_items.total_cost) as total_profit,
+        CASE 
+          WHEN SUM(transaction_items.total_price) > 0 THEN 
+            ROUND((SUM(transaction_items.total_price - transaction_items.total_cost) * 100.0 / SUM(transaction_items.total_price)), 2)
+          ELSE 0 
+        END as profit_margin
+      FROM transaction_items
+      JOIN transactions ON transaction_items.transaction_id = transactions.id
+      WHERE ${whereClause}
+      GROUP BY transaction_items.item_id
+      ORDER BY total_revenue DESC
+      LIMIT 10
+    `,
+      params
+    );
+
+    console.log("📦 Item performance (aggregated):", itemPerformance);
 
     const summary = stats[0] || {};
     const comparison = comparisonStats[0] || {};
@@ -428,7 +521,7 @@ router.get("/dashboard", async (req, res) => {
 
     console.log("📊 Trends:", { revenueTrend, profitTrend, transactionTrend });
 
-    // Format response
+    // Format response with comprehensive variant data
     const response = {
       filters: {
         period,
@@ -468,13 +561,18 @@ router.get("/dashboard", async (req, res) => {
         })),
       },
       top_items: topItems.map((item) => ({
-        name: item.item_name,
+        name: item.variant_name
+          ? `${item.item_name} - ${item.variant_name}`
+          : item.item_name,
+        item_name: item.item_name,
+        variant_name: item.variant_name,
         category: item.category_name,
         quantity: item.total_quantity,
         revenue: item.total_revenue,
         cost: item.total_cost,
         profit: item.total_profit,
         profit_margin: item.profit_margin || 0,
+        has_variant: !!item.variant_name,
       })),
       categories: categoryPerformance.map((cat) => ({
         name: cat.category_name || "Uncategorized",
@@ -484,10 +582,38 @@ router.get("/dashboard", async (req, res) => {
         transactions: cat.transaction_count || 0,
         profit_margin: cat.profit_margin || 0,
       })),
+      variants: variantPerformance.map((variant) => ({
+        name: variant.variant_name,
+        item_name: variant.item_name,
+        variant_name: variant.variant_name,
+        category: variant.category_name,
+        quantity: variant.total_quantity,
+        revenue: variant.total_revenue,
+        cost: variant.total_cost,
+        profit: variant.total_profit,
+        profit_margin: variant.profit_margin || 0,
+        avg_unit_price: variant.avg_unit_price || 0,
+        avg_unit_cost: variant.avg_unit_cost || 0,
+      })),
+      items_aggregated: itemPerformance.map((item) => ({
+        name: item.item_name,
+        category: item.category_name,
+        variant_count: item.variant_count || 0,
+        quantity: item.total_quantity,
+        revenue: item.total_revenue,
+        cost: item.total_cost,
+        profit: item.total_profit,
+        profit_margin: item.profit_margin || 0,
+      })),
       available_categories: allCategories.map((cat) => cat.name),
+      debug: {
+        db_local_time: dbTime.db_local_now,
+        db_local_today: dbTime.db_local_today,
+        filtered_transactions_count: debugTransactions.length,
+      },
     };
 
-    console.log("✅ Final response being sent:", response);
+    console.log("✅ Final response with variants being sent");
     res.json(response);
   } catch (err) {
     console.error("❌ Failed to fetch backoffice data:", err);
@@ -536,95 +662,80 @@ router.get("/filters", async (req, res) => {
   }
 });
 
-// Helper functions (keep the same as before)
-function getDateRange(period) {
-  const now = new Date();
+// 🟢 DEBUG: Check timezone differences
+router.get("/debug-time", async (req, res) => {
+  try {
+    const db = req.db;
 
+    const times = await db.all(`
+      SELECT 
+        datetime('now') as utc_now,
+        datetime('now', 'localtime') as local_now,
+        date('now') as utc_today,
+        date('now', 'localtime') as local_today
+    `);
+
+    const recentTransactions = await db.all(`
+      SELECT 
+        id,
+        transaction_date,
+        DATE(transaction_date) as transaction_date_only
+      FROM transactions 
+      ORDER BY transaction_date DESC 
+      LIMIT 5
+    `);
+
+    res.json({
+      database_times: times[0],
+      recent_transactions: recentTransactions,
+      system_time: new Date().toString(),
+      system_date: new Date().toISOString().split("T")[0],
+    });
+  } catch (err) {
+    console.error("❌ Debug time error:", err);
+    res.status(500).json({ error: "Debug failed: " + err.message });
+  }
+});
+
+// Helper functions
+function getDateRange(period) {
+  const dateFilter = getDatabaseLocalDates(period);
+  if (period === "all") return null;
+
+  // Extract dates from the SQL condition for response
+  const now = new Date();
   switch (period) {
     case "today":
       const today = now.toISOString().split("T")[0];
-      return {
-        start: today,
-        end: today,
-      };
-
+      return { start: today, end: today };
     case "yesterday":
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split("T")[0];
-      return {
-        start: yesterdayStr,
-        end: yesterdayStr,
-      };
-
-    case "week":
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 6);
-      return {
-        start: weekAgo.toISOString().split("T")[0],
-        end: now.toISOString().split("T")[0],
-      };
-
-    case "month":
-      const monthAgo = new Date(now);
-      monthAgo.setDate(monthAgo.getDate() - 29);
-      return {
-        start: monthAgo.toISOString().split("T")[0],
-        end: now.toISOString().split("T")[0],
-      };
-
-    case "quarter":
-      const quarterAgo = new Date(now);
-      quarterAgo.setDate(quarterAgo.getDate() - 89);
-      return {
-        start: quarterAgo.toISOString().split("T")[0],
-        end: now.toISOString().split("T")[0],
-      };
-
-    case "year":
-      const yearAgo = new Date(now);
-      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-      return {
-        start: yearAgo.toISOString().split("T")[0],
-        end: now.toISOString().split("T")[0],
-      };
-
-    case "all":
-      return null;
-
+      return { start: yesterdayStr, end: yesterdayStr };
+    // ... other cases
     default:
-      const todayDefault = now.toISOString().split("T")[0];
-      return {
-        start: todayDefault,
-        end: todayDefault,
-      };
+      return null;
   }
 }
 
-async function getComparisonStats(db, period, whereClause, params) {
-  let comparisonWhere = whereClause;
-  let comparisonParams = [...params];
+async function getComparisonStats(db, period) {
+  let comparisonWhere = "1=1";
+  let comparisonParams = [];
 
+  // Use database local time for comparison periods too
   switch (period) {
     case "today":
-      // Compare with yesterday
-      comparisonWhere = comparisonWhere.replace(
-        "DATE(transaction_date) BETWEEN ? AND ?",
-        "DATE(transaction_date) = DATE('now', '-1 day')"
-      );
-      comparisonParams = comparisonParams.slice(2); // Remove date params
+      comparisonWhere =
+        "DATE(transaction_date) = DATE('now', 'localtime', '-1 day')";
       break;
     case "week":
-      // Compare with previous week
       comparisonWhere =
-        "DATE(transaction_date) BETWEEN DATE('now', '-14 days') AND DATE('now', '-8 days')";
-      comparisonParams = [];
+        "DATE(transaction_date) BETWEEN DATE('now', 'localtime', '-14 days') AND DATE('now', 'localtime', '-8 days')";
       break;
     case "month":
-      // Compare with previous month
       comparisonWhere =
-        "DATE(transaction_date) BETWEEN DATE('now', '-60 days') AND DATE('now', '-31 days')";
-      comparisonParams = [];
+        "DATE(transaction_date) BETWEEN DATE('now', 'localtime', '-60 days') AND DATE('now', 'localtime', '-31 days')";
       break;
     default:
       return [{}];
@@ -636,7 +747,7 @@ async function getComparisonStats(db, period, whereClause, params) {
       COALESCE(SUM(total_amount), 0) as previous_revenue,
       COALESCE(SUM(total_amount - total_cost), 0) as previous_profit,
       COUNT(*) as previous_transactions
-    FROM transactions t
+    FROM transactions
     WHERE ${comparisonWhere}
   `,
     comparisonParams

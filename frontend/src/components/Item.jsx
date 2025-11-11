@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Avatar from "@mui/material/Avatar";
 import Divider from "@mui/material/Divider";
+import Chip from "@mui/material/Chip";
 
 function Item({ item, onClick }) {
   // Safely generate image URL
@@ -17,6 +18,26 @@ function Item({ item, onClick }) {
     // Otherwise, prepend uploads path
     return `http://localhost:5000/uploads/${item.value}`;
   };
+
+  // Calculate price range from variants
+  const getPriceRange = () => {
+    if (!item.variants || item.variants.length === 0) {
+      return "No variants";
+    }
+
+    const prices = item.variants.map((v) => parseFloat(v.price));
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+
+    if (minPrice === maxPrice) {
+      return `₱${minPrice.toFixed(2)}`;
+    } else {
+      return `₱${minPrice.toFixed(2)} - ₱${maxPrice.toFixed(2)}`;
+    }
+  };
+
+  // Count variants
+  const variantCount = item.variants ? item.variants.length : 0;
 
   const renderVisual = () => {
     if (item.type === "color") {
@@ -81,16 +102,26 @@ function Item({ item, onClick }) {
             </Typography>
             <Typography
               variant="body2"
-              sx={{ color: "text.secondary", fontSize: 13 }}
+              sx={{ color: "text.success", fontSize: 13 }}
             >
               {item.categoryName || "Uncategorized"}
             </Typography>
+            <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
+              <Chip
+                label={`${variantCount} variant${
+                  variantCount !== 1 ? "s" : ""
+                }`}
+                size="small"
+                variant="outlined"
+                color="success"
+              />
+            </Box>
           </Box>
         </Box>
 
-        {/* Right: Price */}
+        {/* Right: Price Range */}
         <Typography variant="body1" sx={{ fontWeight: 500 }}>
-          ₱{item.price ? `${parseFloat(item.price).toFixed(2)}` : "-"}
+          {getPriceRange()}
         </Typography>
       </Box>
 

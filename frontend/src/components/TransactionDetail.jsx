@@ -114,7 +114,27 @@ const TransactionDetail = memo(function TransactionDetail({ transaction }) {
                         <Typography variant="h6" component="div">
                           {item.item_name || `Item ${item.item_id}`}
                         </Typography>
-                        {/* Use stored category_name instead of item_type */}
+
+                        {/* Variant Information */}
+                        {item.variant_name && (
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                              mt: 0.5,
+                            }}
+                          >
+                            <Chip
+                              label={`Variant: ${item.variant_name}`}
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                            />
+                          </Box>
+                        )}
+
+                        {/* Category */}
                         <Chip
                           label={item.category_name || "Uncategorized"}
                           size="small"
@@ -130,11 +150,41 @@ const TransactionDetail = memo(function TransactionDetail({ transaction }) {
                         <Typography variant="body2" color="text.secondary">
                           Qty: {item.qty} × ₱{item.unit_price?.toFixed(2)}
                         </Typography>
+
+                        {/* Show discount if applicable */}
+                        {item.unit_price <
+                          (item.original_price || item.unit_price) && (
+                          <Typography variant="caption" color="success.main">
+                            Discount applied
+                          </Typography>
+                        )}
                       </Box>
                     </Box>
 
-                    {/* Item Cost and Profit */}
-                    <Box sx={{ display: "flex", gap: 3, mt: 1 }}>
+                    {/* Item Details */}
+                    <Box
+                      sx={{ display: "flex", gap: 3, mt: 1, flexWrap: "wrap" }}
+                    >
+                      {/* Basic Info */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Item ID
+                        </Typography>
+                        <Typography variant="body2">#{item.item_id}</Typography>
+                      </Box>
+
+                      {item.variant_id && (
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            Variant ID
+                          </Typography>
+                          <Typography variant="body2">
+                            #{item.variant_id}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {/* Pricing Info */}
                       <Box>
                         <Typography variant="caption" color="text.secondary">
                           Unit Cost
@@ -168,6 +218,30 @@ const TransactionDetail = memo(function TransactionDetail({ transaction }) {
                           }}
                         >
                           ₱{item.item_profit?.toFixed(2) || "0.00"}
+                        </Typography>
+                      </Box>
+
+                      {/* Profit Margin per Item */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Margin
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color:
+                              item.item_profit >= 0
+                                ? "success.main"
+                                : "error.main",
+                          }}
+                        >
+                          {item.total_price > 0
+                            ? (
+                                (item.item_profit / item.total_price) *
+                                100
+                              ).toFixed(1)
+                            : "0.0"}
+                          %
                         </Typography>
                       </Box>
                     </Box>

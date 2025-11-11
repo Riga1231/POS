@@ -148,6 +148,7 @@ const Header = memo(function Header({
   onCategoryChange,
   onSearch,
   hasBack = false,
+  onBack, // Add onBack prop
   goTo,
   showNav = true,
 }) {
@@ -259,7 +260,16 @@ const Header = memo(function Header({
     if (!showNav) return null;
     if (hasBack) {
       return (
-        <IconButton onClick={() => goTo?.(0)} sx={{ color: "white" }}>
+        <IconButton
+          onClick={() => {
+            if (onBack) {
+              onBack(); // Use the onBack prop if provided
+            } else {
+              goTo?.(0); // Fallback to old behavior
+            }
+          }}
+          sx={{ color: "white" }}
+        >
           <ArrowBackIcon />
         </IconButton>
       );
@@ -269,7 +279,7 @@ const Header = memo(function Header({
         <MenuIcon />
       </IconButton>
     );
-  }, [showNav, hasBack, goTo, toggleDrawer]);
+  }, [showNav, hasBack, goTo, toggleDrawer, onBack]); // Add onBack to dependencies
 
   const closeDrawer = useCallback(() => toggleDrawer(false), [toggleDrawer]);
 
@@ -279,7 +289,7 @@ const Header = memo(function Header({
         display: "flex",
         alignItems: "center",
         px: 2,
-        backgroundColor: "#5D336E",
+        backgroundColor: "success.main",
         minHeight: "64px",
         justifyContent: "space-between",
       }}

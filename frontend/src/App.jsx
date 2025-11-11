@@ -15,11 +15,10 @@ import UpdateItem from "./Pages/UpdateItem";
 import TransactionPage from "./Pages/TransactionPage";
 import TransactionDetailPage from "./Pages/TransactionDetailPage";
 import "@fontsource/roboto";
-
+// In App.js - Update your routes:
 export default function App() {
   return (
     <AuthProvider>
-      {/* Remove BrowserRouter - it's already in main.jsx */}
       <RouteAuthHandler />
 
       <Routes>
@@ -31,16 +30,12 @@ export default function App() {
           <Route index element={<Items />} />
           <Route path="items" element={<Items />} />
           <Route path="categories" element={<Categories />} />
+          {/* Move these INSIDE the ItemLayout */}
+          <Route path="items/create" element={<CreateItem />} />
+          <Route path="items/update/:id" element={<UpdateItem />} />
+          <Route path="categories/create" element={<CreateCategory />} />
+          <Route path="categories/update/:id" element={<UpdateCategory />} />
         </Route>
-
-        {/* Create Item outside of ItemLayout */}
-        <Route path="/items/items/create" element={<CreateItem />} />
-        <Route path="/items/items/update/:id" element={<UpdateItem />} />
-        <Route path="/items/categories/create" element={<CreateCategory />} />
-        <Route
-          path="/items/categories/update/:id"
-          element={<UpdateCategory />}
-        />
 
         {/* Back Office page - PROTECTED */}
         <Route
