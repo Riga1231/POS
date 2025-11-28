@@ -26,6 +26,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import LockIcon from "@mui/icons-material/Lock";
+import LogoutIcon from "@mui/icons-material/Logout";
 
 import PointOfSaleIcon from "@mui/icons-material/PointOfSaleOutlined";
 import Inventory2Icon from "@mui/icons-material/Inventory2Outlined";
@@ -50,6 +51,13 @@ const DrawerNavItem = memo(
         onClick={() => {
           if (item.link === "/backoffice") {
             onBackOfficeClick?.();
+          } else if (item.link === "/logout") {
+            // Handle logout directly in the nav item
+            if (window.confirm("Are you sure you want to logout?")) {
+              localStorage.removeItem("token");
+              localStorage.removeItem("user");
+              navigate("/login");
+            }
           } else {
             navigate(item.link);
             onClick?.();
@@ -88,6 +96,7 @@ const DrawerContent = memo(
     currentPath,
     onBackOfficeClick,
     currentLocation,
+    onLogout,
   }) => (
     <Box sx={{ width: 250 }} role="presentation">
       <Box
@@ -100,25 +109,21 @@ const DrawerContent = memo(
           minHeight: "80px",
         }}
       >
-        <Avatar
-          src="/logo.png"
-          alt="Logo"
-          sx={{ width: 48, height: 48, bgcolor: "white" }}
-        />
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
-            <Box component="span" sx={{ color: theme.palette.success.main }}>
-              Ark
-            </Box>{" "}
             <Box component="span" sx={{ color: theme.palette.secondary.main }}>
-              Ziam
-            </Box>
+              IMS
+            </Box>{" "}
+            <Box
+              component="span"
+              sx={{ color: theme.palette.secondary.main }}
+            ></Box>
           </Typography>
           <Typography
             variant="caption"
             sx={{ color: theme.palette.text.secondary }}
           >
-            Printing Services
+            POS Interface
           </Typography>
         </Box>
       </Box>
@@ -136,6 +141,29 @@ const DrawerContent = memo(
           />
         ))}
       </List>
+
+      {/* Logout section at bottom of drawer */}
+      <Box sx={{ mt: "auto", p: 2 }}>
+        <Divider sx={{ mb: 2 }} />
+        <ListItemButton
+          onClick={() => {
+            closeDrawer();
+            onLogout?.();
+          }}
+          sx={{
+            color: "error.main",
+            borderRadius: 1,
+            "&:hover": {
+              backgroundColor: "rgba(211, 47, 47, 0.1)",
+            },
+          }}
+        >
+          <ListItemIcon sx={{ color: "error.main", minWidth: 40 }}>
+            <LogoutIcon />
+          </ListItemIcon>
+          <ListItemText primary="Logout" />
+        </ListItemButton>
+      </Box>
     </Box>
   )
 );
@@ -203,16 +231,15 @@ const Header = memo(function Header({
     (e) => onSearch?.(e.target.value),
     [onSearch]
   );
-  const { grantAccess } = useAuth();
+
   const handleSearchActivate = useCallback(() => setSearchActive(true), []);
   const handleSearchDeactivate = useCallback(() => setSearchActive(false), []);
 
   // PIN Authentication handlers - UPDATED FOR DATABASE
   const handleBackOfficeClick = () => {
-    setShowPinModal(true);
-    setPin("");
-    setPinError("");
+    navigate("/backoffice");
   };
+
   const handlePinSubmit = async (e) => {
     if (e) e.preventDefault();
 
@@ -222,9 +249,8 @@ const Header = memo(function Header({
         { pin }
       );
 
-      if (response.data.success) {
+      if (response.data.secondary) {
         console.log("🎯 Granting access...");
-        grantAccess();
 
         // Wait for state update then navigate
         setTimeout(() => {
@@ -254,6 +280,21 @@ const Header = memo(function Header({
     setPin("");
     setPinError("");
     setPendingNavigation("");
+  };
+
+  // Logout handler
+  const handleLogout = () => {
+    if (window.confirm("Are you sure you want to logout?")) {
+      // Clear authentication data
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+
+      // If using AuthContext, you can also call logout from there
+      // auth.logout();
+
+      // Navigate to login page
+      window.location.href = "http://localhost:8000/login";
+    }
   };
 
   const renderLeftButton = useCallback(() => {
@@ -289,7 +330,7 @@ const Header = memo(function Header({
         display: "flex",
         alignItems: "center",
         px: 2,
-        backgroundColor: "success.main",
+        backgroundColor: "secondary.main",
         minHeight: "64px",
         justifyContent: "space-between",
       }}
@@ -346,11 +387,20 @@ const Header = memo(function Header({
       </Box>
 
       {/* Right Section */}
-      {showSearch && !searchActive && (
-        <IconButton sx={{ color: "white" }} onClick={handleSearchActivate}>
-          <SearchIcon />
-        </IconButton>
-      )}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        {showSearch && !searchActive && (
+          <IconButton sx={{ color: "white" }} onClick={handleSearchActivate}>
+            <SearchIcon />
+          </IconButton>
+        )}
+
+        {/* Optional: Add a logout button in header for quick access */}
+        {showNav && !hasBack && (
+          <IconButton sx={{ color: "white" }} onClick={handleLogout}>
+            <LogoutIcon />
+          </IconButton>
+        )}
+      </Box>
 
       {/* Drawer */}
       <Drawer anchor="left" open={drawerOpen} onClose={closeDrawer}>
@@ -362,6 +412,7 @@ const Header = memo(function Header({
           currentPath={location.pathname}
           onBackOfficeClick={handleBackOfficeClick}
           currentLocation={location}
+          onLogout={handleLogout}
         />
       </Drawer>
 

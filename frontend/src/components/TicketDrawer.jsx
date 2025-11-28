@@ -175,7 +175,7 @@ const TicketItem = memo(({ item, onRemoveOne, onRemoveAll }) => {
             bottom: 0,
             left: 0,
             height: 3,
-            backgroundColor: "success.main",
+            backgroundColor: "secondary.main",
             width: `${progress}%`,
             borderRadius: "0 2px 0 0",
             transition: "width 0.1s linear",
@@ -191,7 +191,7 @@ const TicketItem = memo(({ item, onRemoveOne, onRemoveAll }) => {
               variant="body1"
               sx={{
                 fontWeight: isPressed ? 600 : 400,
-                color: isPressed ? "success.main" : "text.primary",
+                color: isPressed ? "secondary.main" : "text.primary",
                 transition: "all 0.2s ease",
               }}
             >
@@ -201,12 +201,12 @@ const TicketItem = memo(({ item, onRemoveOne, onRemoveAll }) => {
         />
         <Typography
           variant="body2"
-          color={isPressed ? "success.main" : "text.secondary"}
+          color={isPressed ? "secondary.main" : "text.secondary"}
           sx={{ transition: "color 0.2s ease" }}
         >
           {item.variant_name} • Qty: {item.qty}
           {item.has_discount && (
-            <Box component="span" sx={{ color: "success.main", ml: 1 }}>
+            <Box component="span" sx={{ color: "secondary.main", ml: 1 }}>
               • Discounted
             </Box>
           )}
@@ -214,7 +214,7 @@ const TicketItem = memo(({ item, onRemoveOne, onRemoveAll }) => {
         {item.has_discount && (
           <Typography
             variant="caption"
-            color={isPressed ? "success.main" : "text.secondary"}
+            color={isPressed ? "secondary.main" : "text.secondary"}
             sx={{ transition: "color 0.2s ease" }}
           >
             Original: ₱{(item.original_price * item.qty).toFixed(2)} • Saved: ₱
@@ -226,7 +226,7 @@ const TicketItem = memo(({ item, onRemoveOne, onRemoveAll }) => {
         {isPressed && progress > 0 && (
           <Typography
             variant="caption"
-            color="success.main"
+            color="secondary.main"
             sx={{
               display: "block",
               mt: 0.5,
@@ -243,7 +243,7 @@ const TicketItem = memo(({ item, onRemoveOne, onRemoveAll }) => {
       <Typography
         fontWeight="semibold"
         sx={{
-          color: isPressed ? "success.main" : "text.primary",
+          color: isPressed ? "secondary.main" : "text.primary",
           transition: "all 0.2s ease",
           position: "relative",
           zIndex: 1,
@@ -426,9 +426,9 @@ export default function TicketDrawer({
           alignItems: "center",
           px: 2,
           py: 2,
-          bgcolor: "success.50",
+          bgcolor: "secondary.50",
 
-          borderColor: "success.100",
+          borderColor: "secondary.100",
         }}
       >
         <Typography variant="h6" fontWeight="bold" color="text.primary">
@@ -437,7 +437,7 @@ export default function TicketDrawer({
         <Typography
           variant="h5"
           fontWeight="bold"
-          color="success.main"
+          color="secondary.main"
           sx={{ minWidth: 80, textAlign: "right" }}
         >
           ₱{total.toFixed(2)}
@@ -451,7 +451,7 @@ export default function TicketDrawer({
             variant="contained"
             fullWidth
             onClick={() => goTo?.(1)}
-            color="success"
+            color="secondary"
             size="large"
             sx={{
               py: 1.5,

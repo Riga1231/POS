@@ -13,6 +13,7 @@ export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
 
   // ➕ Add item to cart (with proper price calculation)
+  // ➕ Add item to cart (with proper price calculation and variant_id preservation)
   const addToCart = (newItem) => {
     setCart((prev) => {
       const existingItem = prev.find((i) => i.id === newItem.id);
@@ -25,6 +26,7 @@ export function CartProvider({ children }) {
         const newUnitPrice = newTotalPrice / newQuantity;
 
         console.log("🔄 Updating existing cart item:");
+        console.log("Variant ID:", newItem.variant_id); // Log variant_id
         console.log(
           "Existing - Qty:",
           existingItem.qty,
@@ -55,14 +57,17 @@ export function CartProvider({ children }) {
             ? {
                 ...i,
                 qty: newQuantity,
-                price: newUnitPrice, // Update to the new average unit price
-                original_price: newItem.original_price, // Keep the latest original price
+                price: newUnitPrice,
+                original_price: newItem.original_price,
+                variant_id: newItem.variant_id, // Ensure variant_id is preserved
+                item_id: newItem.item_id, // Ensure item_id is preserved
               }
             : i
         );
       } else {
         // If new item, add with the provided quantity and price
         console.log("🆕 Adding new cart item:");
+        console.log("Variant ID:", newItem.variant_id); // Log variant_id
         console.log(
           "Qty:",
           newItem.qty,

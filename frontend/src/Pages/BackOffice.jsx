@@ -28,7 +28,6 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import WarningIcon from "@mui/icons-material/Warning";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -100,7 +99,6 @@ const IconWrapper = styled(Box)(({ trend }) => ({
 export default function BackOffice() {
   console.log("🚀 BackOffice component mounted");
 
-  const { isAuthorized } = useAuth();
   const navigate = useNavigate();
 
   const [dashboardData, setDashboardData] = useState(null);
@@ -115,14 +113,6 @@ export default function BackOffice() {
     category: "all",
   });
 
-  // PIN Change states
-  const [showPinDialog, setShowPinDialog] = useState(false);
-  const [currentPin, setCurrentPin] = useState("");
-  const [newPin, setNewPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [pinError, setPinError] = useState("");
-  const [pinSuccess, setPinSuccess] = useState("");
-
   // Reset Data states
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -130,25 +120,11 @@ export default function BackOffice() {
   const [resetSuccess, setResetSuccess] = useState("");
   const [resetConfirmation, setResetConfirmation] = useState("");
 
-  // Redirect if not authorized
-  useEffect(() => {
-    if (!isAuthorized) {
-      console.log("🔐 No authorization, redirecting to home");
-      navigate("/");
-    }
-  }, [isAuthorized, navigate]);
-
-  // Fetch dashboard data only when authorized
-  useEffect(() => {
-    if (isAuthorized) {
-      fetchDashboardData(filters);
-    }
-  }, [isAuthorized, filters]);
-
   // Fetch dashboard data with current filters
   const fetchDashboardData = async (currentFilters) => {
     try {
       setLoading(true);
+      setError(null);
 
       const params = new URLSearchParams();
       if (currentFilters.period) params.append("period", currentFilters.period);
@@ -162,85 +138,41 @@ export default function BackOffice() {
       const url = `http://localhost:5000/api/backoffice/dashboard?${params}`;
       console.log("🔄 Fetching from:", url);
 
-      const response = await axios.get(url);
+      const response = await axios.get(url, { timeout: 10000 });
       console.log("✅ Backoffice data received:", response.data);
-      setDashboardData(response.data);
-      setError(null);
+
+      if (response.data) {
+        setDashboardData(response.data);
+      } else {
+        setError("No data received from server");
+      }
     } catch (err) {
       console.error("❌ Failed to fetch dashboard data:", err);
       if (err.code === "ERR_NETWORK") {
         setError(
           "Backend server is not running. Please start your backend server on port 5000."
         );
+      } else if (err.code === "ECONNABORTED") {
+        setError("Request timeout. Please check if the backend is running.");
       } else {
         setError(`Failed to load dashboard data: ${err.message}`);
       }
+      setDashboardData(null);
     } finally {
       setLoading(false);
     }
   };
 
+  // Initial data fetch
+  useEffect(() => {
+    fetchDashboardData(filters);
+  }, []); // Empty dependency array - only run once on mount
+
   // Handle filter changes
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
-    if (isAuthorized) {
-      fetchDashboardData(newFilters);
-    }
-  };
-
-  // PIN Change handlers
-  const handleOpenPinDialog = () => {
-    setShowPinDialog(true);
-    setCurrentPin("");
-    setNewPin("");
-    setConfirmPin("");
-    setPinError("");
-    setPinSuccess("");
-  };
-
-  const handleClosePinDialog = () => {
-    setShowPinDialog(false);
-    setCurrentPin("");
-    setNewPin("");
-    setConfirmPin("");
-    setPinError("");
-    setPinSuccess("");
-  };
-
-  const handleChangePin = async (e) => {
-    e.preventDefault();
-
-    if (newPin.length !== 4 || !/^\d+$/.test(newPin)) {
-      setPinError("New PIN must be exactly 4 digits");
-      return;
-    }
-
-    if (newPin !== confirmPin) {
-      setPinError("New PIN and confirmation do not match");
-      return;
-    }
-
-    try {
-      const response = await axios.put(
-        "http://localhost:5000/api/backoffice/pin",
-        {
-          currentPin,
-          newPin,
-        }
-      );
-
-      if (response.data.success) {
-        setPinSuccess("PIN changed successfully!");
-        setPinError("");
-        setTimeout(() => {
-          handleClosePinDialog();
-        }, 2000);
-      }
-    } catch (err) {
-      setPinError(err.response?.data?.error || "Failed to change PIN");
-      setPinSuccess("");
-    }
+    fetchDashboardData(newFilters);
   };
 
   // Reset Data handlers
@@ -312,20 +244,20 @@ export default function BackOffice() {
     return [
       {
         label: "Total Revenue",
-        value: formatCurrency(summary.total_revenue),
+        value: formatCurrency(summary?.total_revenue || 0),
         trend:
-          trends.revenue_trend > 0
+          trends?.revenue_trend > 0
             ? "up"
-            : trends.revenue_trend < 0
+            : trends?.revenue_trend < 0
             ? "down"
             : "neutral",
-        change: formatPercentage(trends.revenue_trend),
+        change: formatPercentage(trends?.revenue_trend || 0),
         icon: <AttachMoneyIcon />,
         description: `from previous period`,
       },
       {
         label: "Total Cost",
-        value: formatCurrency(summary.total_cost),
+        value: formatCurrency(summary?.total_cost || 0),
         trend: "neutral",
         change: `Cost of Sales`,
         icon: <InventoryIcon />,
@@ -333,33 +265,35 @@ export default function BackOffice() {
       },
       {
         label: "Net Profit",
-        value: formatCurrency(summary.total_profit),
+        value: formatCurrency(summary?.total_profit || 0),
         trend:
-          trends.profit_trend > 0
+          trends?.profit_trend > 0
             ? "up"
-            : trends.profit_trend < 0
+            : trends?.profit_trend < 0
             ? "down"
             : "neutral",
-        change: formatPercentage(trends.profit_trend),
+        change: formatPercentage(trends?.profit_trend || 0),
         icon: <TrendingUpIcon />,
-        description: `Margin: ${(summary.profit_margin || 0).toFixed(1)}%`,
+        description: `Margin: ${(summary?.profit_margin || 0).toFixed(1)}%`,
       },
       {
         label: "Transactions",
-        value: summary.total_transactions?.toString() || "0",
+        value: summary?.total_transactions?.toString() || "0",
         trend:
-          trends.transaction_trend > 0
+          trends?.transaction_trend > 0
             ? "up"
-            : trends.transaction_trend < 0
+            : trends?.transaction_trend < 0
             ? "down"
             : "neutral",
-        change: formatPercentage(trends.transaction_trend),
+        change: formatPercentage(trends?.transaction_trend || 0),
         icon: <PointOfSaleIcon />,
-        description: `Avg: ${formatCurrency(summary.avg_transaction_value)}`,
+        description: `Avg: ${formatCurrency(
+          summary?.avg_transaction_value || 0
+        )}`,
       },
       {
         label: "Business Days",
-        value: summary.business_days?.toString() || "0",
+        value: summary?.business_days?.toString() || "0",
         trend: "neutral",
         change: `Active days`,
         icon: <PeopleIcon />,
@@ -367,11 +301,6 @@ export default function BackOffice() {
       },
     ];
   };
-
-  // Don't render anything if not authorized (ProtectedRoute handles redirect)
-  if (!isAuthorized) {
-    return null;
-  }
 
   // Show loading while fetching data
   if (loading && !dashboardData) {
@@ -385,10 +314,11 @@ export default function BackOffice() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              flexDirection: "column",
             }}
           >
             <CircularProgress />
-            <Typography sx={{ ml: 2 }}>Loading dashboard data...</Typography>
+            <Typography sx={{ mt: 2 }}>Loading dashboard data...</Typography>
           </Box>
         </Box>
       </ThemeProvider>
@@ -406,9 +336,23 @@ export default function BackOffice() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              flexDirection: "column",
+              p: 3,
             }}
           >
-            <Typography color="error">{error}</Typography>
+            <Typography color="error" variant="h6" gutterBottom>
+              Error Loading Dashboard
+            </Typography>
+            <Typography color="error" textAlign="center">
+              {error}
+            </Typography>
+            <Button
+              variant="contained"
+              sx={{ mt: 2 }}
+              onClick={() => fetchDashboardData(filters)}
+            >
+              Retry
+            </Button>
           </Box>
         </Box>
       </ThemeProvider>
@@ -433,7 +377,7 @@ export default function BackOffice() {
         </Box>
       </ThemeProvider>
     );
-  } 
+  }
 
   const { variants, available_categories } = dashboardData;
 
@@ -523,13 +467,6 @@ export default function BackOffice() {
 
             {/* Action Buttons - Moved to the right */}
             <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
-              <Button
-                variant="outlined"
-                startIcon={<LockIcon />}
-                onClick={handleOpenPinDialog}
-              >
-                Change PIN
-              </Button>
               <Button
                 variant="outlined"
                 color="error"
@@ -855,82 +792,6 @@ export default function BackOffice() {
             </Button>
           </Box>
         </Box>
-
-        {/* Change PIN Dialog */}
-        <Dialog
-          open={showPinDialog}
-          onClose={handleClosePinDialog}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <LockIcon color="secondary" />
-              <Typography variant="h6">Change Admin PIN</Typography>
-            </Box>
-          </DialogTitle>
-          <form onSubmit={handleChangePin}>
-            <DialogContent>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Change the PIN required to access the Back Office
-              </Typography>
-
-              <TextField
-                fullWidth
-                type="password"
-                label="Current PIN"
-                value={currentPin}
-                onChange={(e) =>
-                  setCurrentPin(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                inputProps={{ maxLength: 4 }}
-                sx={{ mb: 2 }}
-              />
-
-              <TextField
-                fullWidth
-                type="password"
-                label="New PIN (4 digits)"
-                value={newPin}
-                onChange={(e) =>
-                  setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                inputProps={{ maxLength: 4 }}
-                sx={{ mb: 2 }}
-              />
-
-              <TextField
-                fullWidth
-                type="password"
-                label="Confirm New PIN"
-                value={confirmPin}
-                onChange={(e) =>
-                  setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                inputProps={{ maxLength: 4 }}
-                sx={{ mb: 2 }}
-              />
-
-              {pinError && (
-                <Typography color="error" sx={{ mt: 1 }}>
-                  {pinError}
-                </Typography>
-              )}
-
-              {pinSuccess && (
-                <Typography color="success.main" sx={{ mt: 1 }}>
-                  {pinSuccess}
-                </Typography>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleClosePinDialog}>Cancel</Button>
-              <Button type="submit" variant="contained" color="secondary">
-                Change PIN
-              </Button>
-            </DialogActions>
-          </form>
-        </Dialog>
 
         {/* Reset All Data Dialog */}
         <Dialog

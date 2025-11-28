@@ -59,18 +59,22 @@ const deleteFile = (filePath) => {
 };
 
 // ===================== ITEM VARIANTS ROUTES =====================
-
-// 🟢 CREATE ITEM VARIANT
+// 🟢 CREATE ITEM VARIANT - UPDATED WITH QUANTITY
 router.post("/:id/variants", async (req, res) => {
   try {
     const db = req.db;
-    const { variant_name, cost, price } = req.body;
+    const { variant_name, cost, price, quantity } = req.body; // ADD quantity
     const item_id = req.params.id;
 
-    // Validate required fields
-    if (!variant_name || cost === undefined || price === undefined) {
+    // Validate required fields - UPDATE validation
+    if (
+      !variant_name ||
+      cost === undefined ||
+      price === undefined ||
+      quantity === undefined
+    ) {
       return res.status(400).json({
-        error: "Variant name, cost, and price are required",
+        error: "Variant name, cost, price, and quantity are required", // UPDATE error message
       });
     }
 
@@ -80,11 +84,17 @@ router.post("/:id/variants", async (req, res) => {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    // Insert variant
+    // Insert variant - UPDATE query to include quantity
     const result = await db.run(
-      `INSERT INTO item_variants (item_id, variant_name, cost, price)
-       VALUES (?, ?, ?, ?)`,
-      [item_id, variant_name, parseFloat(cost), parseFloat(price)]
+      `INSERT INTO item_variants (item_id, variant_name, cost, price, quantity)
+       VALUES (?, ?, ?, ?, ?)`, // ADD quantity
+      [
+        item_id,
+        variant_name,
+        parseFloat(cost),
+        parseFloat(price),
+        parseInt(quantity),
+      ] // ADD quantity
     );
 
     res.status(201).json({
@@ -93,6 +103,7 @@ router.post("/:id/variants", async (req, res) => {
       variant_name,
       cost: parseFloat(cost),
       price: parseFloat(price),
+      quantity: parseInt(quantity), // ADD quantity to response
     });
   } catch (err) {
     console.error("❌ Failed to create item variant:", err);
@@ -107,7 +118,8 @@ router.get("/:id/variants", async (req, res) => {
     const item_id = req.params.id;
 
     const variants = await db.all(
-      `SELECT * FROM item_variants WHERE item_id = ? ORDER BY variant_name`,
+      `SELECT id, item_id, variant_name, cost, price, quantity, created_at, postgres_product_id, postgres_stock_id 
+   FROM item_variants WHERE item_id = ? ORDER BY variant_name`,
       [item_id]
     );
 

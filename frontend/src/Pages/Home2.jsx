@@ -34,7 +34,6 @@ export default function Home2({ goTo }) {
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [alertSeverity, setAlertSeverity] = useState("error");
-
   const handleCreateTransaction = async () => {
     try {
       // Calculate actual total from cart items
@@ -43,20 +42,33 @@ export default function Home2({ goTo }) {
         0
       );
 
+      // DEBUG: Log cart items to check variant_id
+      console.log("🛒 CART ITEMS FOR TRANSACTION:");
+      cart.forEach((item, index) => {
+        console.log(`Item ${index + 1}:`, {
+          name: item.name,
+          variant_name: item.variant_name,
+          variant_id: item.variant_id,
+          item_id: item.item_id,
+          qty: item.qty,
+          price: item.price,
+        });
+      });
+
       const transactionData = {
         items: cart.map((item) => ({
           item_id: item.item_id,
-          variant_id: item.variant_id,
+          variant_id: item.variant_id, // This is crucial!
           name: item.name,
           variant_name: item.variant_name,
           categoryName: item.categoryName,
           qty: item.qty,
-          price: parseFloat(item.price.toFixed(2)), // Fix: Ensure 2 decimal places
+          price: parseFloat(item.price.toFixed(2)),
           cost: item.cost || 0,
           has_discount: item.has_discount || false,
           original_price: item.original_price || item.price,
         })),
-        total_amount: parseFloat(actualTotal.toFixed(2)), // Fix: Ensure 2 decimal places
+        total_amount: parseFloat(actualTotal.toFixed(2)),
         payment_method: paymentMethod,
       };
 
@@ -68,12 +80,12 @@ export default function Home2({ goTo }) {
       );
 
       console.log("✅ TRANSACTION CREATED:", response.data);
-      return true; // Success
+      return true;
     } catch (error) {
       console.error("❌ FAILED TO CREATE TRANSACTION:", error);
       console.error("📋 ERROR DETAILS:", error.response?.data);
       showAlert("Failed to create transaction: " + error.message, "error");
-      return false; // Failure
+      return false;
     }
   };
 

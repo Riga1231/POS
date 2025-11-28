@@ -18,39 +18,28 @@ import "@fontsource/roboto";
 // In App.js - Update your routes:
 export default function App() {
   return (
-    <AuthProvider>
-      <RouteAuthHandler />
+    <Routes>
+      {/* Landing / home page */}
+      <Route path="/" element={<LandingPage />} />
 
-      <Routes>
-        {/* Landing / home page */}
-        <Route path="/" element={<LandingPage />} />
+      {/* Item layout with nested routes */}
+      <Route path="/items" element={<ItemLayout />}>
+        <Route index element={<Items />} />
+        <Route path="items" element={<Items />} />
+        <Route path="categories" element={<Categories />} />
+        {/* Move these INSIDE the ItemLayout */}
+        <Route path="items/create" element={<CreateItem />} />
+        <Route path="items/update/:id" element={<UpdateItem />} />
+        <Route path="categories/create" element={<CreateCategory />} />
+        <Route path="categories/update/:id" element={<UpdateCategory />} />
+      </Route>
 
-        {/* Item layout with nested routes */}
-        <Route path="/items" element={<ItemLayout />}>
-          <Route index element={<Items />} />
-          <Route path="items" element={<Items />} />
-          <Route path="categories" element={<Categories />} />
-          {/* Move these INSIDE the ItemLayout */}
-          <Route path="items/create" element={<CreateItem />} />
-          <Route path="items/update/:id" element={<UpdateItem />} />
-          <Route path="categories/create" element={<CreateCategory />} />
-          <Route path="categories/update/:id" element={<UpdateCategory />} />
-        </Route>
+      {/* Back Office page - PROTECTED */}
+      <Route path="/backoffice" element={<BackOffice />} />
 
-        {/* Back Office page - PROTECTED */}
-        <Route
-          path="/backoffice"
-          element={
-            <ProtectedRoute>
-              <BackOffice />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Transaction Pages */}
-        <Route path="/transactions" element={<TransactionPage />} />
-        <Route path="/transactions/:id" element={<TransactionDetailPage />} />
-      </Routes>
-    </AuthProvider>
+      {/* Transaction Pages */}
+      <Route path="/transactions" element={<TransactionPage />} />
+      <Route path="/transactions/:id" element={<TransactionDetailPage />} />
+    </Routes>
   );
 }

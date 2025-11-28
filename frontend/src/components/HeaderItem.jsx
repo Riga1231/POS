@@ -12,7 +12,7 @@ export default function HeaderItem({ onBack, onSave, title = "Header" }) {
         alignItems: "center",
         justifyContent: "space-between",
         px: 2,
-        backgroundColor: "success.main",
+        backgroundColor: "secondary.main",
         minHeight: "64px",
       }}
     >
