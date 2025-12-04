@@ -127,8 +127,8 @@ router.post("/", async (req, res) => {
     }
   }
 });
+// Function to update PostgreSQL stock by decrementing from the earliest expiring batch
 
-// Function to update PostgreSQL stock using stored IDs
 async function updatePostgreSQLStock(
   pgClient,
   sqliteDb,
@@ -136,70 +136,94 @@ async function updatePostgreSQLStock(
   quantitySold
 ) {
   try {
-    // Get PostgreSQL IDs from SQLite
     const variant = await sqliteDb.get(
       "SELECT postgres_product_id, postgres_stock_id FROM item_variants WHERE id = ?",
       [variantId]
     );
 
-    if (!variant) {
-      console.warn(`⚠️ Variant not found in SQLite: ${variantId}`);
+    if (!variant?.postgres_stock_id) {
+      console.warn(`⚠️ No PostgreSQL stock_id found for variant: ${variantId}`);
       return;
     }
 
-    if (variant.postgres_stock_id) {
-      // Update using stock_id (most reliable)
-      const updateQuery = `
-        UPDATE product_stocks 
-        SET total_on_hand = GREATEST(0, total_on_hand - $1)
-        WHERE stock_id = $2
-        RETURNING stock_id, total_on_hand, product_id
-      `;
+    // Use a CTE to handle FIFO decrement and stock update in one transaction
+    const updateQuery = `
+      WITH available_batches AS (
+        SELECT 
+          batch_id,
+          on_hand,
+          expiry_date,
+          SUM(on_hand) OVER (ORDER BY expiry_date ASC) as cumulative_on_hand,
+          COALESCE(SUM(on_hand) OVER (ORDER BY expiry_date ASC ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) as prev_cumulative
+        FROM product_batch 
+        WHERE stock_id = $1 
+          AND on_hand > 0 
+          AND status IN ('Normal', 'Near Expiry', 'Low Stock')
+        ORDER BY expiry_date ASC
+      ),
+      batch_updates AS (
+        SELECT 
+          batch_id,
+          CASE 
+            WHEN cumulative_on_hand <= $2 THEN on_hand  -- All from this batch
+            WHEN prev_cumulative < $2 THEN $2 - prev_cumulative  -- Partial from this batch
+            ELSE 0  -- Nothing from this batch
+          END as to_decrement
+        FROM available_batches
+        WHERE cumulative_on_hand > prev_cumulative  -- Skip if on_hand = 0
+      ),
+      update_batches AS (
+        UPDATE product_batch pb
+        SET on_hand = GREATEST(0, pb.on_hand - bu.to_decrement)
+        FROM batch_updates bu
+        WHERE pb.batch_id = bu.batch_id
+          AND bu.to_decrement > 0
+        RETURNING pb.stock_id, bu.to_decrement
+      ),
+      total_decremented AS (
+        SELECT COALESCE(SUM(to_decrement), 0) as total
+        FROM update_batches
+      )
+      UPDATE product_stocks ps
+      SET total_on_hand = GREATEST(0, total_on_hand - (SELECT total FROM total_decremented))
+      WHERE stock_id = $1
+      RETURNING 
+        ps.stock_id, 
+        ps.product_id, 
+        ps.total_on_hand as new_total,
+        ps.status,
+        (SELECT total FROM total_decremented) as quantity_sold;
+    `;
 
-      const result = await pgClient.query(updateQuery, [
-        quantitySold,
-        variant.postgres_stock_id,
-      ]);
+    const result = await pgClient.query(updateQuery, [
+      variant.postgres_stock_id,
+      quantitySold,
+    ]);
 
-      if (result.rows.length > 0) {
-        console.log(`✅ Updated PostgreSQL stock:`, {
-          stock_id: result.rows[0].stock_id,
-          product_id: result.rows[0].product_id,
-          new_stock: result.rows[0].total_on_hand,
-          quantity_sold: quantitySold,
-        });
-      } else {
-        console.warn(
-          `⚠️ No stock record found for stock_id: ${variant.postgres_stock_id}`
+    if (result.rows.length === 0) {
+      // Check if there's any stock at all
+      const stockCheck = await pgClient.query(
+        `SELECT 
+          COALESCE(SUM(on_hand), 0) as total_available,
+          COUNT(*) as batch_count
+         FROM product_batch 
+         WHERE stock_id = $1 
+           AND on_hand > 0 
+           AND status IN ('Normal', 'Near Expiry', 'Low Stock')`,
+        [variant.postgres_stock_id]
+      );
+
+      if (stockCheck.rows[0].batch_count === 0) {
+        throw new Error(
+          `No batches available for stock_id: ${variant.postgres_stock_id}`
         );
-      }
-    } else if (variant.postgres_product_id) {
-      // Fallback: update using product_id
-      const updateQuery = `
-        UPDATE product_stocks 
-        SET total_on_hand = GREATEST(0, total_on_hand - $1)
-        WHERE product_id = $2
-        RETURNING stock_id, total_on_hand, product_id
-      `;
-
-      const result = await pgClient.query(updateQuery, [
-        quantitySold,
-        variant.postgres_product_id,
-      ]);
-
-      if (result.rows.length > 0) {
-        console.log(`✅ Updated PostgreSQL stock (fallback):`, {
-          product_id: result.rows[0].product_id,
-          new_stock: result.rows[0].total_on_hand,
-          quantity_sold: quantitySold,
-        });
-      } else {
-        console.warn(
-          `⚠️ No stock record found for product_id: ${variant.postgres_product_id}`
+      } else if (stockCheck.rows[0].total_available < quantitySold) {
+        throw new Error(
+          `Insufficient stock. Requested: ${quantitySold}, Available: ${stockCheck.rows[0].total_available}`
         );
       }
     } else {
-      console.warn(`⚠️ No PostgreSQL IDs found for variant: ${variantId}`);
+      console.log(`✅ Updated PostgreSQL stock (FIFO):`, result.rows[0]);
     }
   } catch (error) {
     console.error("❌ Failed to update PostgreSQL stock:", error);
