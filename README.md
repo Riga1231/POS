@@ -1,12 +1,12 @@
 # Point of Sale System
 
-## 📌 Overview
+##  Overview
 
 Cross-platform desktop and mobile application for managing sales, transactions, and inventory with a modern interface. Features a smooth, user-friendly design with some similarity to Loyverse for comprehensive sales management.
 
 ---
 
-## ✨ Features
+##  Features
 
 - Payment method support with receipt generation
 - Report generation and sales analytics
@@ -16,7 +16,7 @@ Cross-platform desktop and mobile application for managing sales, transactions, 
 
 ---
 
-## 🖼️ Screenshots
+##  Screenshots
 
 <p align="center">
   <img src="screenshots/screenshot1.png" width="32%" />
@@ -34,7 +34,7 @@ Cross-platform desktop and mobile application for managing sales, transactions, 
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 | Component | Technology               |
 | --------- | ------------------------ |
