@@ -468,42 +468,6 @@ export default function Home1({ goTo }) {
           }
         />
 
-        {/* Stock Debug Info - Temporary */}
-        <Box
-          sx={{
-            p: 1,
-            backgroundColor: "#f5f5f5",
-            borderBottom: "1px solid #ddd",
-          }}
-        >
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Typography variant="body2" fontWeight="bold">
-              Stock Debug: PRD-00001 ={" "}
-              {items.find((item) => item.id === "PRD-00001")?.stock_quantity ||
-                "Not found"}
-            </Typography>
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Button onClick={fetchData} variant="outlined" size="small">
-                Refresh Data
-              </Button>
-              <Button
-                onClick={handleForceSync}
-                variant="contained"
-                size="small"
-                disabled={isSyncing}
-              >
-                {isSyncing ? "Syncing..." : "Force Sync"}
-              </Button>
-            </Box>
-          </Box>
-        </Box>
-
         {/* Main Content Area */}
         <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
           {currentView === "categories" && (
