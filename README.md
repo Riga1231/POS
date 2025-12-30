@@ -2,7 +2,7 @@
 
 ## 📌 Overview
 
-Desktop and mobile application for managing sales, transactions, and inventory with a modern interface. Features a smooth, user-friendly design with some similarity to Loyverse for comprehensive sales management.
+Cross-platform desktop and mobile application for managing sales, transactions, and inventory with a modern interface. Features a smooth, user-friendly design with some similarity to Loyverse for comprehensive sales management.
 
 ---
 
